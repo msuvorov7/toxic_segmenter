@@ -1,0 +1,11 @@
+stages:
+
+  data_load:
+    cmd: python src/data_load/data_load.py --config=params.yaml
+    deps:
+      - src/data_load/data_load.py
+    outs:
+      - data/raw/train_tokens.pkl
+      - data/raw/test_tokens.pkl
+      - data/raw/train_tags.pkl
+      - data/raw/test_tags.pkl
