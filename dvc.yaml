@@ -1,0 +1,25 @@
+stages:
+
+  data_load:
+    cmd: python src/data_load/data_load.py --config=params.yaml
+    deps:
+      - src/data_load/data_load.py
+    outs:
+      - data/raw/train_tokens.pkl
+      - data/raw/test_tokens.pkl
+      - data/raw/train_tags.pkl
+      - data/raw/test_tags.pkl
+
+  build_train:
+    cmd: python src/feature/build_feature.py --mode=train
+    deps:
+      - src/feature/build_feature.py
+      - data/raw/train_tokens.pkl
+      - data/raw/train_tags.pkl
+
+  build_test:
+    cmd: python src/feature/build_feature.py --mode=test
+    deps:
+      - src/feature/build_feature.py
+      - data/raw/test_tokens.pkl
+      - data/raw/test_tags.pkl
