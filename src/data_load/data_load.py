@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import pickle
 import sys
@@ -12,8 +13,21 @@ sys.path.insert(0, os.path.dirname(
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
 
 def download_dataset(data_raw_directory: str) -> None:
+    """
+    Загрузка и сохранение датасета в raw данные
+    :param data_raw_directory: путь до raw директории
+    :return:
+    """
     dataset = load_dataset("tesemnikov-av/toxic_dataset_ner")
 
     train_tokens = dataset['train']['tokens']
@@ -35,6 +49,8 @@ def download_dataset(data_raw_directory: str) -> None:
             test_tags)
     )
 
+    logging.info('datasets loaded')
+
     with open(data_raw_directory + 'train_tokens.pkl', 'wb') as file:
         pickle.dump(train_tokens, file)
 
@@ -46,6 +62,8 @@ def download_dataset(data_raw_directory: str) -> None:
 
     with open(data_raw_directory + 'test_tags.pkl', 'wb') as file:
         pickle.dump(test_tags, file)
+
+    logging.info(f'datasets saved: {data_raw_directory}')
 
 
 if __name__ == '__main__':
