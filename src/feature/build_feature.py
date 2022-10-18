@@ -6,11 +6,17 @@ import sys
 
 import numpy as np
 import yaml
-from typing import Tuple
+from typing import Tuple, List
+
+from gensim.models import FastText
+
 
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
+
+from src.feature.dataset import ToxicDataset
+
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -23,8 +29,31 @@ logging.basicConfig(
 )
 
 
-def clear_text():
-    pass
+def fit_fasttext_model(text: List[list], directory_path: str) -> FastText:
+    vocabulary = FastText(text)
+    with open(directory_path + 'fasttext.model', 'wb') as file:
+        vocabulary.save(file)
+
+    return vocabulary
+
+
+def load_fasttext_model(directory_path: str) -> FastText:
+    vocabulary = FastText.load(directory_path + 'fasttext.model')
+    return vocabulary
+
+
+def create_dataset(embedding_model: FastText,
+                   text: List[list],
+                   tags: List[list],
+                   directory_path: str,
+                   mode: str,
+                   ) -> None:
+    features = list(map(lambda sentence: list(map(lambda item: embedding_model.wv[item], sentence)), text))
+
+    dataset = ToxicDataset(features, tags)
+
+    with open(directory_path + f'{mode}_dataset.pkl', 'wb') as file:
+        pickle.dump(dataset, file)
 
 
 def download_dataframe(mode: str, directory_path: str) -> Tuple[list, list]:
@@ -62,8 +91,24 @@ if __name__ == '__main__':
     args_parser.add_argument('--mode', default='train', dest='mode')
     args = args_parser.parse_args()
 
+    assert args.mode in ('train', 'test')
+
     with open(fileDir + args.config) as conf_file:
         config = yaml.safe_load(conf_file)
 
     data_raw_dir = fileDir + config['data']['raw']
-    download_dataframe(args.mode, data_raw_dir)
+    data_processed_dir = fileDir + config['data']['processed']
+    tokens, tags = download_dataframe(args.mode, data_raw_dir)
+
+    if args.mode == 'train':
+        fasttext_model = fit_fasttext_model(tokens, fileDir + config['models'])
+    else:
+        fasttext_model = load_fasttext_model(fileDir + config['models'])
+
+    create_dataset(embedding_model=fasttext_model,
+                   text=tokens,
+                   tags=tags,
+                   directory_path=data_processed_dir,
+                   mode=args.mode,
+                   )
+    logging.info(f'dataset saved in {data_processed_dir}')

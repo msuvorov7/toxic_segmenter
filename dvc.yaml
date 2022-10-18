@@ -16,6 +16,9 @@ stages:
       - src/feature/build_feature.py
       - data/raw/train_tokens.pkl
       - data/raw/train_tags.pkl
+    outs:
+      - models/fasttext.model
+      - data/processed/train_dataset.pkl
 
   build_test:
     cmd: python src/feature/build_feature.py --mode=test
@@ -23,3 +26,16 @@ stages:
       - src/feature/build_feature.py
       - data/raw/test_tokens.pkl
       - data/raw/test_tags.pkl
+      - models/fasttext.model
+    outs:
+      - data/processed/test_dataset.pkl
+
+  train_model:
+    cmd: python src/model/train_model.py --epoch=1
+    deps:
+      - src/model/train_model.py
+      - src/model/model.py
+      - data/processed/train_dataset.pkl
+      - data/processed/test_dataset.pkl
+    outs:
+      - models/model.torch
