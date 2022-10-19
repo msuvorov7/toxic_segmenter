@@ -2,6 +2,9 @@ from torch.utils.data import Dataset
 
 
 class ToxicDataset(Dataset):
+    """
+    Класс для подачи данных в DataLoader
+    """
     def __init__(self, features: list, tags: list):
         self.features = features
         self.tags = tags

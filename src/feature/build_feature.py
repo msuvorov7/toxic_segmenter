@@ -30,6 +30,12 @@ logging.basicConfig(
 
 
 def fit_fasttext_model(text: List[list], directory_path: str) -> FastText:
+    """
+    Функция для обучения модели FastText на наборе токенов
+    :param text: список токенизированных предложений
+    :param directory_path: путь для сохранения обученной модели
+    :return:
+    """
     vocabulary = FastText(text)
     with open(directory_path + 'fasttext.model', 'wb') as file:
         vocabulary.save(file)
@@ -38,6 +44,11 @@ def fit_fasttext_model(text: List[list], directory_path: str) -> FastText:
 
 
 def load_fasttext_model(directory_path: str) -> FastText:
+    """
+    Функция для загрузки обученной модели
+    :param directory_path: путь до директории с моделью
+    :return:
+    """
     vocabulary = FastText.load(directory_path + 'fasttext.model')
     return vocabulary
 
@@ -48,6 +59,15 @@ def create_dataset(embedding_model: FastText,
                    directory_path: str,
                    mode: str,
                    ) -> None:
+    """
+    Функция для создания датасета на вход в DataLoader
+    :param embedding_model: модель для создания эмбеддингов токенов
+    :param text: список токенизированных предложений
+    :param tags: список тэгов для токенов в предложении
+    :param directory_path: путь для сохранения датасета
+    :param mode: train или test датасет создать
+    :return:
+    """
     features = list(map(lambda sentence: list(map(lambda item: embedding_model.wv[item], sentence)), text))
 
     dataset = ToxicDataset(features, tags)

@@ -2,6 +2,9 @@ import torch.nn as nn
 
 
 class ToxicSegmenter(nn.Module):
+    """
+    Модель для классификации токсичных токенов
+    """
     def __init__(
             self,
             embedding_dim: int,
