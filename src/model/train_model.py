@@ -4,12 +4,14 @@ import os
 import pickle
 import sys
 
+import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import yaml
+from dotenv import load_dotenv
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
@@ -23,6 +25,10 @@ from src.model.model import ToxicSegmenter
 
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
+
+load_dotenv()
+remote_server_uri = os.getenv("MLFLOW_TRACKING_URI")
+mlflow.set_tracking_uri(remote_server_uri)
 
 
 logging.basicConfig(
@@ -156,6 +162,8 @@ def fit(model: nn.Module,
                                                                                       val_roc)
               )
 
+        mlflow.log_metric('val_roc_auc', val_roc)
+
         train_losses.append(train_loss)
         val_losses.append(val_loss)
 
@@ -208,5 +216,10 @@ if __name__ == '__main__':
     model = ToxicSegmenter(embedding_dim=100, hidden_size=256, output_dim=2)
     logging.info(f'model created')
 
-    _, _ = fit(model, train_loader, valid_loader, args.epoch)
+    mlflow.set_experiment('base model')
+
+    with mlflow.start_run():
+        logging.info(mlflow.get_artifact_uri())
+        _, _ = fit(model, train_loader, valid_loader, args.epoch)
+
     save_model(model, fileDir + config['models'])
