@@ -35,7 +35,13 @@ logging.basicConfig(
 
 
 def collate_fn(batch) -> dict:
-
+    """
+    Обработчик батча перед входом в модель.
+    Забивает предложения pad-токенами до длинны самого длинного
+    предложения в батче
+    :param batch: батч данных
+    :return:
+    """
     max_len = max(len(row['feature']) for row in batch)
 
     feature = torch.empty((len(batch), max_len, 100), dtype=torch.float32)
@@ -60,6 +66,16 @@ def train(model: nn.Module,
           optimizer: torch.optim.Optimizer,
           device: str
           ) -> (float, float, float):
+    """
+    Функция для обучения модели на одной этохе
+    :param model: модель
+    :param training_data_loader: набор для обучения
+    :param validating_data_loader: набор для валидации
+    :param criterion: функция потерь
+    :param optimizer: оптимизатор функции потерь
+    :param device: обучение на gpu или cpu
+    :return:
+    """
     train_loss = 0.0
     val_loss = 0.0
 
@@ -108,6 +124,14 @@ def fit(model: nn.Module,
         validating_data_loader: DataLoader,
         epochs: int
         ) -> (list, list):
+    """
+    Основной цикл обучения по эпохам
+    :param model: модель
+    :param training_data_loader: набор для обучения
+    :param validating_data_loader: набор для валидации
+    :param epochs: число эпох обучения
+    :return:
+    """
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
