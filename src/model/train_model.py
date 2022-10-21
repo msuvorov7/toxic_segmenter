@@ -198,7 +198,10 @@ if __name__ == '__main__':
 
     logging.info(f'datasets loaded')
 
-    train_data, valid_data = random_split(train_dataset, [35_000, 10_000],
+    train_size = len(train_dataset)
+    validation_size = int(0.3 * train_size)
+
+    train_data, valid_data = random_split(train_dataset, [train_size - validation_size, validation_size],
                                           generator=torch.Generator().manual_seed(42)
                                           )
     train_loader = DataLoader(train_data, batch_size=32, collate_fn=collate_fn, shuffle=True)
