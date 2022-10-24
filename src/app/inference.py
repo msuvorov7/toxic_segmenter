@@ -49,7 +49,7 @@ logging.info(f'fasttext model loaded')
 
 
 @bot.message_handler(content_types=['text'])
-def photo(message):
+def predict(message):
     content = ContentWrapper(message.text, fasttext_model)
     predicted = F.softmax(model(content.transform()), dim=1)[:, 1].cpu().detach().numpy()
 
@@ -57,7 +57,8 @@ def photo(message):
     for token, pred in zip(content.tokenize(), predicted):
         result_message += f'{token}: {pred:.2f}\n'
 
-    bot.send_message(message.chat.id, result_message)
+    bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    bot.send_message(chat_id=message.chat.id, text=result_message)
 
 
 bot.polling()
