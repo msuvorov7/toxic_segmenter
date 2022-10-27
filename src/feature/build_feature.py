@@ -2,21 +2,21 @@ import argparse
 import logging
 import os
 import pickle
+import re
 import sys
 
 import numpy as np
+import pandas as pd
 import yaml
 from typing import Tuple, List
 
 from gensim.models import FastText
-
 
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
 from src.feature.dataset import ToxicDataset
-
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -29,18 +29,15 @@ logging.basicConfig(
 )
 
 
-def fit_fasttext_model(text: List[list], directory_path: str) -> FastText:
+def save_fasttext_model(directory_path: str, embedding_model: FastText) -> None:
     """
     Функция для обучения модели FastText на наборе токенов
-    :param text: список токенизированных предложений
     :param directory_path: путь для сохранения обученной модели
+    :param embedding_model: обученная модель
     :return:
     """
-    vocabulary = FastText(text)
     with open(directory_path + 'fasttext.model', 'wb') as file:
-        vocabulary.save(file)
-
-    return vocabulary
+        embedding_model.save(file)
 
 
 def load_fasttext_model(directory_path: str) -> FastText:
@@ -53,62 +50,72 @@ def load_fasttext_model(directory_path: str) -> FastText:
     return vocabulary
 
 
-def create_dataset(embedding_model: FastText,
-                   text: List[list],
-                   tags: List[list],
-                   directory_path: str,
-                   mode: str,
-                   ) -> None:
-    """
-    Функция для создания датасета на вход в DataLoader
-    :param embedding_model: модель для создания эмбеддингов токенов
-    :param text: список токенизированных предложений
-    :param tags: список тэгов для токенов в предложении
-    :param directory_path: путь для сохранения датасета
-    :param mode: train или test датасет создать
-    :return:
-    """
-    features = list(map(lambda sentence: list(map(lambda item: embedding_model.wv[item], sentence)), text))
-
-    dataset = ToxicDataset(features, tags)
-
-    with open(directory_path + f'{mode}_dataset.pkl', 'wb') as file:
-        pickle.dump(dataset, file)
-
-
-def download_dataframe(mode: str, directory_path: str) -> Tuple[list, list]:
+def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
     """
     Загрузка датасета в память
-    :param mode: train или test датафрейм
     :param directory_path: путь до папки с сырыми данными
+    :param mode: train/test
     :return:
     """
-    tokens_filename = f'{mode}_tokens.pkl'
-    tokens_filename = directory_path + '/' + tokens_filename
-
-    tags_filename = f'{mode}_tags.pkl'
-    tags_filename = directory_path + '/' + tags_filename
-
-    with open(tokens_filename, 'rb') as file:
-        tokens = pickle.load(file)
-
-    with open(tags_filename, 'rb') as file:
-        tags = pickle.load(file)
-
-    tags_flatten = [item for sublist in tags for item in sublist]
+    dataframe = pd.read_parquet(directory_path + f'{mode}_df.parquet')
+    is_toxic = dataframe['tags'].apply(lambda item: 1 if sum(item) > 0 else 0)
 
     logging.info(
-        f'{int(sum(tags_flatten))} positive class '
-        f'of {len(tags_flatten)} labels ({np.round((sum(tags_flatten) / len(tags_flatten) * 100), 1)}%)'
+        f'{int(sum(is_toxic))} positive class '
+        f'of {len(is_toxic)} labels ({np.round((sum(is_toxic) / len(is_toxic) * 100), 1)}%)'
     )
 
-    return tokens, tags
+    return dataframe
+
+
+def preprocess_token(token: str) -> str:
+    token = token.lower()
+    pattern = r'[.,!?"()]'
+    text = re.sub(pattern, '', string=token)
+
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F700-\U0001F77F"  # alchemical symbols
+        "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
+        "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
+        "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+        "\U0001FA00-\U0001FA6F"  # Chess Symbols
+        "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+        "\U00002702-\U000027B0"  # Dingbats
+        "\U000024C2-\U0001F251"
+        "]+"
+    )
+    return emoji_pattern.sub(r'', text)
+
+
+def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, mode: str) -> tuple:
+    tokens = dataframe['raw_tokens']
+    tags = dataframe['tags']
+
+    cleaned_tokens = tokens.apply(lambda item: [preprocess_token(token) for token in item])
+
+    if mode == 'train':
+        embedding_model = FastText(vector_size=300, min_n=4, window=4)
+        embedding_model.build_vocab(cleaned_tokens)
+        save_fasttext_model(embedding_model=embedding_model, directory_path=embedding_model_path)
+    else:
+        embedding_model = load_fasttext_model(embedding_model_path)
+
+    features = cleaned_tokens.apply(
+        lambda sentence: np.array([embedding_model.wv[item] for item in sentence])
+    )
+
+    return features, tags
 
 
 if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--config', default='params.yaml', dest='config')
-    args_parser.add_argument('--mode', default='train', dest='mode')
+    args_parser.add_argument('--mode', default='test', dest='mode')
     args = args_parser.parse_args()
 
     assert args.mode in ('train', 'test')
@@ -118,17 +125,13 @@ if __name__ == '__main__':
 
     data_raw_dir = fileDir + config['data']['raw']
     data_processed_dir = fileDir + config['data']['processed']
-    tokens, tags = download_dataframe(args.mode, data_raw_dir)
+    embedding_model_dir = fileDir + config['models']
+    df = download_dataframe(data_raw_dir, args.mode)
+    features, tags = build_feature(df, embedding_model_dir, args.mode)
 
-    if args.mode == 'train':
-        fasttext_model = fit_fasttext_model(tokens, fileDir + config['models'])
-    else:
-        fasttext_model = load_fasttext_model(fileDir + config['models'])
+    dataset = ToxicDataset(features, tags)
 
-    create_dataset(embedding_model=fasttext_model,
-                   text=tokens,
-                   tags=tags,
-                   directory_path=data_processed_dir,
-                   mode=args.mode,
-                   )
+    with open(data_processed_dir + f'{args.mode}_dataset.pkl', 'wb') as file:
+        pickle.dump(dataset, file)
+
     logging.info(f'dataset saved in {data_processed_dir}')

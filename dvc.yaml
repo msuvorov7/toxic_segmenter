@@ -1,21 +1,28 @@
 stages:
 
-  data_load:
-    cmd: python src/data_load/data_load.py --config=params.yaml
+#  data_load:
+#    cmd: python src/data_load/data_load.py --config=params.yaml
+#    deps:
+#      - src/data_load/data_load.py
+#    outs:
+#      - data/raw/train_tokens.pkl
+#      - data/raw/test_tokens.pkl
+#      - data/raw/train_tags.pkl
+#      - data/raw/test_tags.pkl
+
+  create_data:
+    cmd: python src/data_load/create_dataframe.py --config=params.yaml
     deps:
-      - src/data_load/data_load.py
+      - src/data_load/create_dataframe.py
     outs:
-      - data/raw/train_tokens.pkl
-      - data/raw/test_tokens.pkl
-      - data/raw/train_tags.pkl
-      - data/raw/test_tags.pkl
+      - data/raw/train_df.parquet
+      - data/raw/test_df.parquet
 
   build_train:
     cmd: python src/feature/build_feature.py --mode=train
     deps:
       - src/feature/build_feature.py
-      - data/raw/train_tokens.pkl
-      - data/raw/train_tags.pkl
+      - data/raw/train_df.parquet
     outs:
       - models/fasttext.model
       - data/processed/train_dataset.pkl
@@ -24,8 +31,7 @@ stages:
     cmd: python src/feature/build_feature.py --mode=test
     deps:
       - src/feature/build_feature.py
-      - data/raw/test_tokens.pkl
-      - data/raw/test_tags.pkl
+      - data/raw/test_df.parquet
       - models/fasttext.model
     outs:
       - data/processed/test_dataset.pkl
