@@ -44,14 +44,14 @@ def collate_fn(batch) -> dict:
     """
     max_len = max(len(row['feature']) for row in batch)
 
-    feature = torch.empty((len(batch), max_len, 100), dtype=torch.float32)
+    feature = torch.empty((len(batch), max_len, 300), dtype=torch.float32)
     tag = torch.empty((len(batch), max_len), dtype=torch.long)
 
     for idx, row in enumerate(batch):
         to_pad = max_len - len(row['feature'])
         _feat = np.array(row['feature'])
         _tag = row['tag']
-        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 100))), axis=0)
+        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 300))), axis=0)
         tag[idx] = torch.cat((torch.tensor(_tag), torch.zeros(to_pad)))
     return {
         'feature': feature,
@@ -196,7 +196,7 @@ if __name__ == '__main__':
     with open(data_processed_dir + 'test_dataset.pkl', 'rb') as file:
         test_dataset = pickle.load(file)
 
-    logging.info(f'datasets loaded')
+    logging.info(f'datasets loaded: {len(train_dataset)}, {len(test_dataset)}')
 
     train_size = len(train_dataset)
     validation_size = int(0.3 * train_size)
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     valid_loader = DataLoader(valid_data, batch_size=32, collate_fn=collate_fn, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn, shuffle=False)
 
-    model = ToxicSegmenter(embedding_dim=100, hidden_size=256, output_dim=2)
+    model = ToxicSegmenter(embedding_dim=300, hidden_size=256, output_dim=2)
     logging.info(f'model created')
 
     _, _ = fit(model, train_loader, valid_loader, args.epoch)

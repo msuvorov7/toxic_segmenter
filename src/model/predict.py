@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import pickle
 import sys
 
 import numpy as np
@@ -11,11 +12,13 @@ import torch.nn.functional as F
 import yaml
 from gensim.models import FastText
 
-from src.feature.build_feature import load_fasttext_model
-
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
+
+from src.feature.build_feature import preprocess_token
+from src.data_load.create_dataframe import tokenize
+from src.feature.build_feature import load_fasttext_model
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -26,26 +29,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-
-
-class ContentWrapper:
-    """
-    Класс для обработки текста перед входом в модель
-    """
-    def __init__(self, text: str, embedding_model: FastText):
-        self.text = text
-        self.embedding_model = embedding_model
-
-    def tokenize(self) -> list:
-        return self.text.split()
-
-    def encode(self, sentence: list) -> np.ndarray:
-        return np.array([self.embedding_model.wv[item] for item in sentence])
-
-    def transform(self) -> torch.Tensor:
-        tokens = self.tokenize()
-        encoded = self.encode(tokens)
-        return torch.tensor(encoded)
 
 
 def load_model(directory_path: str) -> nn.Module:
@@ -73,11 +56,12 @@ if __name__ == '__main__':
     fasttext_model = load_fasttext_model(fileDir + config['models'])
     logging.info(f'fasttext model loaded')
 
-    text = 'paste your toxic message'
-    content = ContentWrapper(text, fasttext_model)
+    text = 'пидрила злоебучий убери свою смазливую морду. собака конченная вот ты кто. знаю я вашу породу хуеплет'
+    tokens = tokenize(text)
+    cleaned_tokens = [preprocess_token(token) for token in tokens]
+    encoded = [fasttext_model.wv[item] for item in cleaned_tokens]
 
-    predicted = F.softmax(model(content.transform()), dim=1)[:, 1].cpu().detach().numpy()
-    logging.info('answer is ready:')
+    preds = F.softmax(model(torch.tensor(encoded)), dim=1)[:, 1].cpu().detach().numpy()
 
-    for token, pred in zip(content.tokenize(), predicted):
+    for token, pred in zip(tokens, preds):
         print(f'{token}: {pred:.2f}')
