@@ -11,6 +11,7 @@ class ToxicSegmenter(nn.Module):
             hidden_size: int,
             output_dim: int,
             dropout=0.5,
+            is_bidirectional: bool = False,
     ):
         super().__init__()
 
@@ -18,7 +19,7 @@ class ToxicSegmenter(nn.Module):
                             hidden_size=hidden_size,
                             num_layers=1,
                             batch_first=True,
-                            bidirectional=True)
+                            bidirectional=is_bidirectional)
 
         self.fc = nn.Linear(2 * hidden_size, output_dim)
 
