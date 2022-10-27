@@ -10,9 +10,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import yaml
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, balanced_accuracy_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 
 sys.path.insert(0, os.path.dirname(
@@ -97,7 +98,7 @@ def train(model: nn.Module,
     train_loss /= len(training_data_loader)
 
     model.eval()
-    y_true, y_pred = [], []
+    y_true, y_pred, label_pred = [], [], []
     for batch in tqdm(validating_data_loader):
 
         text = batch['feature'].to(device)
@@ -105,16 +106,35 @@ def train(model: nn.Module,
 
         prediction = model(text)
         prediction = prediction.view(-1, prediction.shape[2])
+        label_predict = torch.argmax(prediction, dim=1).view(-1)
         preds = F.softmax(prediction, dim=1)[:, 1]
+
         y_true += labels.cpu().detach().numpy().ravel().tolist()
         y_pred += preds.cpu().detach().numpy().ravel().tolist()
+        label_pred += label_predict.cpu().detach().numpy().ravel().tolist()
 
         loss = criterion(prediction, labels)
 
         val_loss += loss.item()
 
     val_loss /= len(validating_data_loader)
+
+    # ba_scores = []
+    # for th in np.linspace(0, 1, 100):
+    #     a = (y_pred > th).astype(int)
+    #     ba_scores.append(balanced_accuracy_score(y_true, a))
+    # plt.figure(figsize=(16, 6))
+    # plt.grid()
+    # plt.plot(ba_scores)
+    # plt.show()
+
     val_roc = roc_auc_score(y_true, y_pred)
+    val_bac = balanced_accuracy_score(y_true, label_pred)
+    logging.info(f'balanced accuracy: {val_bac}')
+
+    th = 0.15
+    val_bac = balanced_accuracy_score(y_true, (np.asarray(y_pred) > th).astype(int))
+    logging.info(f'balanced accuracy threshold {th}: {val_bac}')
 
     return train_loss, val_loss, val_roc
 
@@ -138,7 +158,7 @@ def fit(model: nn.Module,
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.11, 0.89]), dtype=torch.float32))
 
     train_losses = []
     val_losses = []
