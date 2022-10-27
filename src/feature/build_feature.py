@@ -38,6 +38,7 @@ def save_fasttext_model(directory_path: str, embedding_model: FastText) -> None:
     """
     with open(directory_path + 'fasttext.model', 'wb') as file:
         embedding_model.save(file)
+    logging.info(f'fasttext_model saved in {directory_path}')
 
 
 def load_fasttext_model(directory_path: str) -> FastText:
@@ -99,8 +100,9 @@ def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, mode: str)
     cleaned_tokens = tokens.apply(lambda item: [preprocess_token(token) for token in item])
 
     if mode == 'train':
-        embedding_model = FastText(vector_size=300, min_n=4, window=4)
-        embedding_model.build_vocab(cleaned_tokens)
+        embedding_model = FastText(cleaned_tokens, vector_size=300, min_n=4, window=4)
+        # embedding_model.build_vocab(cleaned_tokens)
+        # embedding_model.train(cleaned_tokens)
         save_fasttext_model(embedding_model=embedding_model, directory_path=embedding_model_path)
     else:
         embedding_model = load_fasttext_model(embedding_model_path)
@@ -115,7 +117,7 @@ def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, mode: str)
 if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--config', default='params.yaml', dest='config')
-    args_parser.add_argument('--mode', default='test', dest='mode')
+    args_parser.add_argument('--mode', default='train', dest='mode')
     args = args_parser.parse_args()
 
     assert args.mode in ('train', 'test')
