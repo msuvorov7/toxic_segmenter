@@ -2,7 +2,9 @@ import logging
 import os
 import sys
 
+import numpy as np
 import telebot
+import torch
 import yaml
 from dotenv import load_dotenv
 
@@ -61,11 +63,11 @@ def predict(message):
     toxic_smile = '🤬'
     result_message = ''
 
-    preds = [model.predict_proba(encode)[:, 1][0].round(2) for encode in encoded]
+    preds = F.softmax(model(torch.tensor(np.array(encoded))), dim=1)[:, 1].cpu().detach().numpy()
     for token, pred in zip(tokens, preds):
         if pred > 0.5:
             result_message += toxic_smile
-        result_message += f'{token}: {pred}\n'
+        result_message += f'{token}: {pred:.3f}\n'
 
     # bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
     bot.send_message(chat_id=message.chat.id, text=result_message)
