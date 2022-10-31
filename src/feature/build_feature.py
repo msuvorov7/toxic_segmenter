@@ -71,7 +71,7 @@ def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
 
 def preprocess_token(token: str) -> str:
     token = token.lower()
-    pattern = r'[.,!?"()]'
+    pattern = r'[.,!?"()-_—:;«»]'
     text = re.sub(pattern, '', string=token)
 
     emoji_pattern = re.compile(

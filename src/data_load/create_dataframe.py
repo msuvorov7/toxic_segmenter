@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
+from src.utils.augmentator import Augmentator
+
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
 logging.basicConfig(
@@ -31,8 +33,18 @@ def tokenize(text: str) -> list:
 
 def clear_token(token: str) -> str:
     token = token.lower()
-    pattern = r'[.,!?"()]'
+    pattern = r'[.,!?"()-_—:;«»]'
     return re.sub(pattern, '', string=token)
+
+
+def augment(df: pd.DataFrame) -> pd.DataFrame():
+    augmentator = Augmentator(probability=0.5)
+
+    df['raw_tokens'] = df['raw_tokens'].apply(lambda item: [augmentator.randomly_remove(token) for token in item])
+    df['raw_tokens'] = df['raw_tokens'].apply(lambda item: [augmentator.randomly_noise(token) for token in item])
+    df['raw_tokens'] = df['raw_tokens'].apply(lambda item: [augmentator.randomly_replace_to_latin(token) for token in item])
+
+    return df
 
 
 def create_dataframe(directory_path: str, test_size: float):
@@ -46,11 +58,23 @@ def create_dataframe(directory_path: str, test_size: float):
 
     df = pd.DataFrame(np.array([labels, text], dtype='object').T, columns=["label", "text"])
 
+    labeled = pd.read_csv(directory_path + 'labeled.csv')
+    labeled.columns = ['text', 'label']
+    labeled['label'] = labeled['label'].apply(lambda item: '[INSULT]' if item == 1 else '[NORMAL]')
+    df = pd.concat([df, labeled], axis=0)
+
     tokens = df['text'].apply(lambda item: tokenize(item))
     cleaned_tokens = tokens.apply(lambda item: [clear_token(token) for token in item])
     tags = cleaned_tokens.apply(lambda item: [1 if token in vocab else 0 for token in item])
 
     dataframe = pd.DataFrame(np.array([tokens, tags], dtype='object').T, columns=['raw_tokens', 'tags'])
+
+    logging.info('starting augmentation...')
+    augmented_dataframe = augment(dataframe.sample(frac=0.2, random_state=42))
+    logging.info(f'augmentation shape: {augmented_dataframe.shape}')
+    augmented_dataframe.to_parquet(directory_path + 'augment.parquet', index=False)
+
+    dataframe = pd.concat([dataframe, augmented_dataframe], axis=0)
     is_toxic = dataframe['tags'].apply(lambda item: 1 if sum(item) > 0 else 0)
 
     logging.info(
