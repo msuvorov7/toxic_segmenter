@@ -1,0 +1,87 @@
+import random
+
+import numpy as np
+
+
+class Augmentator:
+    def __init__(self, probability: float) -> None:
+        self.probability = probability
+        self.noise_string = "qwertyuiop[]asdfghjkl;'\|`~zxcvbnm,./?<>§±1234567890-=!@#$%^&*(" \
+                            ")_+№%:йцукенгшщзхъфывапролджэё][ячсмитьбю "
+        self.ru_2_lat = {
+            'а': ['a', '@'],
+            'б': ['b'],
+            'в': ['v'],
+            'г': ['g'],
+            'д': ['d', 'g'],
+            'е': ['e'],
+            'ё': ['e'],
+            'ж': ['zh'],
+            'з': ['z', '3'],
+            'и': ['i'],
+            'й': ['i'],
+            'к': ['k'],
+            'л': ['l', '1', '|'],
+            'м': ['m'],
+            'н': ['n'],
+            'о': ['o', '0'],
+            'п': ['p'],
+            'р': ['r'],
+            'с': ['s', '$', 'c'],
+            'т': ['t'],
+            'у': ['u', 'y'],
+            'ф': ['f'],
+            'х': ['h', 'x', '}{'],
+            'ц': ['c'],
+            'ч': ['cz', '4'],
+            'ш': ['sh'],
+            'щ': ['scz'],
+            'ъ': [''],
+            'ы': ['y'],
+            'ь': ['b'],
+            'э': ['e'],
+            'ю': ['u'],
+            'я': ['ja'],
+        }
+
+    def _is_empty_token(self, token: str) -> bool:
+        return len(token) == 0
+
+    def randomly_remove(self, token: str) -> str:
+        if self._is_empty_token(token):
+            return token
+
+        p = np.random.rand()
+
+        if p <= self.probability:
+            index_to_remove = np.random.choice(np.arange(len(token)))
+            return token[:index_to_remove] + token[index_to_remove + 1:]
+        return token
+
+    def randomly_noise(self, token: str) -> str:
+        if self._is_empty_token(token):
+            return token
+
+        p = np.random.rand()
+
+        if p <= self.probability:
+            index_to_paste = np.random.choice(np.arange(len(token)))
+            index_to_noise = np.random.choice(np.arange(len(self.noise_string)))
+            count_of_noise = np.random.choice(np.arange(5))
+            return (token[:index_to_paste]
+                    + self.noise_string[index_to_noise] * count_of_noise
+                    + token[index_to_paste:])
+        return token
+
+    def randomly_replace_to_latin(self, token: str) -> str:
+        if self._is_empty_token(token):
+            return token
+
+        p = np.random.rand()
+        if p <= self.probability:
+            for _ in range(2):
+                char = random.choice(list(token))
+                if char in self.ru_2_lat:
+                    latin = random.choice(list(self.ru_2_lat[char]))
+                    token = token.replace(char, latin)
+        return token
