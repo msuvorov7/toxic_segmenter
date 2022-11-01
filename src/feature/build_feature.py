@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(
 ))
 
 from src.feature.dataset import ToxicDataset
+from src.feature.preprocess_rules import Preprocessor
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -69,38 +70,16 @@ def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
     return dataframe
 
 
-def preprocess_token(token: str) -> str:
-    token = token.lower()
-    pattern = r'[.,!?"()-_—:;«»]'
-    text = re.sub(pattern, '', string=token)
-
-    emoji_pattern = re.compile(
-        "["
-        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F700-\U0001F77F"  # alchemical symbols
-        "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
-        "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
-        "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
-        "\U0001FA00-\U0001FA6F"  # Chess Symbols
-        "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
-        "\U00002702-\U000027B0"  # Dingbats
-        "\U000024C2-\U0001F251"
-        "]+"
-    )
-    return emoji_pattern.sub(r'', text)
-
-
 def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, mode: str) -> tuple:
     tokens = dataframe['raw_tokens']
     tags = dataframe['tags']
 
-    cleaned_tokens = tokens.apply(lambda item: [preprocess_token(token) for token in item])
+    preprocessor = Preprocessor()
+
+    cleaned_tokens = tokens.apply(lambda item: [preprocessor.forward(token) for token in item])
 
     if mode == 'train':
-        embedding_model = FastText(cleaned_tokens, vector_size=300, min_n=4, window=4)
+        embedding_model = FastText(cleaned_tokens, vector_size=300, min_n=4, max_n=6, window=5, negative=7)
         # embedding_model.build_vocab(cleaned_tokens)
         # embedding_model.train(cleaned_tokens)
         save_fasttext_model(embedding_model=embedding_model, directory_path=embedding_model_path)
