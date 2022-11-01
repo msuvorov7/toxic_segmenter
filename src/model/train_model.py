@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import pickle
+import random
 import sys
 
 import mlflow
@@ -16,7 +17,16 @@ from sklearn.metrics import roc_auc_score, balanced_accuracy_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from sklearn.utils.class_weight import compute_class_weight
 
+
+SEED = 1234
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -145,6 +155,32 @@ def train(model: nn.Module,
     return train_loss, val_loss, val_roc
 
 
+def test(model: nn.Module,
+         test_data_loader: DataLoader,
+         device: str,
+         ):
+
+    model.eval()
+    y_true, y_pred, label_pred = [], [], []
+    for batch in tqdm(test_data_loader):
+        text = batch['feature'].to(device)
+        labels = batch['tag'].view(-1).to(device)
+
+        prediction = model(text)
+        prediction = prediction.view(-1, prediction.shape[2])
+        label_predict = torch.argmax(prediction, dim=1).view(-1)
+        preds = F.softmax(prediction, dim=1)[:, 1]
+
+        y_true += labels.cpu().detach().numpy().ravel().tolist()
+        y_pred += preds.cpu().detach().numpy().ravel().tolist()
+        label_pred += label_predict.cpu().detach().numpy().ravel().tolist()
+
+    test_roc = roc_auc_score(y_true, y_pred)
+    logging.info(f'test roc auc: {test_roc}')
+    test_bac = balanced_accuracy_score(y_true, label_pred)
+    logging.info(f'balanced accuracy: {test_bac}')
+
+
 def fit(model: nn.Module,
         training_data_loader: DataLoader,
         validating_data_loader: DataLoader,
@@ -164,7 +200,8 @@ def fit(model: nn.Module,
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.11, 0.89]), dtype=torch.float32))
+    # criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.5, 30.7]), dtype=torch.float32), reduction='mean')
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.12, 0.88]), dtype=torch.float32), reduction='mean')
 
     train_losses = []
     val_losses = []
@@ -232,6 +269,12 @@ if __name__ == '__main__':
     train_data, valid_data = random_split(train_dataset, [train_size - validation_size, validation_size],
                                           generator=torch.Generator().manual_seed(42)
                                           )
+    y = []
+    for item in train_data:
+        y += item['tag'].tolist()
+    logging.info(f"class_weight: {compute_class_weight(class_weight='balanced', classes=np.unique(y), y=np.array(y))}")
+    logging.info(f'mean: {np.mean(y)*100:.3f}%')
+
     train_loader = DataLoader(train_data, batch_size=32, collate_fn=collate_fn, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=32, collate_fn=collate_fn, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn, shuffle=False)
@@ -244,5 +287,5 @@ if __name__ == '__main__':
     with mlflow.start_run():
         logging.info(mlflow.get_artifact_uri())
         _, _ = fit(model, train_loader, valid_loader, args.epoch)
-
+        test(model, test_loader, 'cpu')
     save_model(model, fileDir + config['models'])
