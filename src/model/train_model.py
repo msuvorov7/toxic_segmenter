@@ -12,9 +12,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 import yaml
 from dotenv import load_dotenv
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, balanced_accuracy_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 
 sys.path.insert(0, os.path.dirname(
@@ -50,14 +51,14 @@ def collate_fn(batch) -> dict:
     """
     max_len = max(len(row['feature']) for row in batch)
 
-    feature = torch.empty((len(batch), max_len, 100), dtype=torch.float32)
+    feature = torch.empty((len(batch), max_len, 300), dtype=torch.float32)
     tag = torch.empty((len(batch), max_len), dtype=torch.long)
 
     for idx, row in enumerate(batch):
         to_pad = max_len - len(row['feature'])
         _feat = np.array(row['feature'])
         _tag = row['tag']
-        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 100))), axis=0)
+        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 300))), axis=0)
         tag[idx] = torch.cat((torch.tensor(_tag), torch.zeros(to_pad)))
     return {
         'feature': feature,
@@ -103,7 +104,7 @@ def train(model: nn.Module,
     train_loss /= len(training_data_loader)
 
     model.eval()
-    y_true, y_pred = [], []
+    y_true, y_pred, label_pred = [], [], []
     for batch in tqdm(validating_data_loader):
 
         text = batch['feature'].to(device)
@@ -111,16 +112,35 @@ def train(model: nn.Module,
 
         prediction = model(text)
         prediction = prediction.view(-1, prediction.shape[2])
+        label_predict = torch.argmax(prediction, dim=1).view(-1)
         preds = F.softmax(prediction, dim=1)[:, 1]
+
         y_true += labels.cpu().detach().numpy().ravel().tolist()
         y_pred += preds.cpu().detach().numpy().ravel().tolist()
+        label_pred += label_predict.cpu().detach().numpy().ravel().tolist()
 
         loss = criterion(prediction, labels)
 
         val_loss += loss.item()
 
     val_loss /= len(validating_data_loader)
+
+    # ba_scores = []
+    # for th in np.linspace(0, 1, 100):
+    #     a = (y_pred > th).astype(int)
+    #     ba_scores.append(balanced_accuracy_score(y_true, a))
+    # plt.figure(figsize=(16, 6))
+    # plt.grid()
+    # plt.plot(ba_scores)
+    # plt.show()
+
     val_roc = roc_auc_score(y_true, y_pred)
+    val_bac = balanced_accuracy_score(y_true, label_pred)
+    logging.info(f'balanced accuracy: {val_bac}')
+
+    th = 0.15
+    val_bac = balanced_accuracy_score(y_true, (np.asarray(y_pred) > th).astype(int))
+    logging.info(f'balanced accuracy threshold {th}: {val_bac}')
 
     return train_loss, val_loss, val_roc
 
@@ -144,7 +164,7 @@ def fit(model: nn.Module,
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.11, 0.89]), dtype=torch.float32))
 
     train_losses = []
     val_losses = []
@@ -204,16 +224,19 @@ if __name__ == '__main__':
     with open(data_processed_dir + 'test_dataset.pkl', 'rb') as file:
         test_dataset = pickle.load(file)
 
-    logging.info(f'datasets loaded')
+    logging.info(f'datasets loaded: {len(train_dataset)}, {len(test_dataset)}')
 
-    train_data, valid_data = random_split(train_dataset, [35_000, 10_000],
+    train_size = len(train_dataset)
+    validation_size = int(0.3 * train_size)
+
+    train_data, valid_data = random_split(train_dataset, [train_size - validation_size, validation_size],
                                           generator=torch.Generator().manual_seed(42)
                                           )
     train_loader = DataLoader(train_data, batch_size=32, collate_fn=collate_fn, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=32, collate_fn=collate_fn, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn, shuffle=False)
 
-    model = ToxicSegmenter(embedding_dim=100, hidden_size=256, output_dim=2)
+    model = ToxicSegmenter(embedding_dim=300, hidden_size=256, output_dim=2)
     logging.info(f'model created')
 
     mlflow.set_experiment('base model')
