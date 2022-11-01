@@ -10,7 +10,7 @@ class Augmentator:
                             ")_+№%:йцукенгшщзхъфывапролджэё][ячсмитьбю "
         self.ru_2_lat = {
             'а': ['a', '@'],
-            'б': ['b'],
+            'б': ['b', '6'],
             'в': ['v'],
             'г': ['g'],
             'д': ['d', 'g'],
@@ -33,15 +33,26 @@ class Augmentator:
             'ф': ['f'],
             'х': ['h', 'x', '}{'],
             'ц': ['c'],
-            'ч': ['cz', '4'],
+            'ч': ['cz', '4', 'ch'],
             'ш': ['sh'],
             'щ': ['scz'],
             'ъ': [''],
             'ы': ['y'],
-            'ь': ['b'],
+            'ь': ['b', '’'],
             'э': ['e'],
             'ю': ['u'],
             'я': ['ja'],
+        }
+        self.replace_grammar = {
+            'а': 'о',
+            'о': 'а',
+            'е': 'и',
+            'м': 'н',
+            'н': 'м',
+            'в': 'ф',
+            'ф': 'в',
+            'у': 'ю',
+            'ю': 'у',
         }
 
     def _is_empty_token(self, token: str) -> bool:
@@ -67,7 +78,7 @@ class Augmentator:
         if p <= self.probability:
             index_to_paste = np.random.choice(np.arange(len(token)))
             index_to_noise = np.random.choice(np.arange(len(self.noise_string)))
-            count_of_noise = np.random.choice(np.arange(5))
+            count_of_noise = np.random.choice(np.arange(3))
             return (token[:index_to_paste]
                     + self.noise_string[index_to_noise] * count_of_noise
                     + token[index_to_paste:])
@@ -79,9 +90,21 @@ class Augmentator:
 
         p = np.random.rand()
         if p <= self.probability:
-            for _ in range(2):
+            replace_num = np.random.choice(np.array(len(token)))
+            for _ in range(replace_num):
                 char = random.choice(list(token))
                 if char in self.ru_2_lat:
                     latin = random.choice(list(self.ru_2_lat[char]))
                     token = token.replace(char, latin)
+        return token
+
+    def randomly_replace_grammar(self, token: str) -> str:
+        if self._is_empty_token(token):
+            return token
+
+        p = np.random.rand()
+        if p <= self.probability:
+            for _ in range(2):
+                char = random.choice(list(self.replace_grammar.keys()))
+                token = token.replace(char, self.replace_grammar[char])
         return token
