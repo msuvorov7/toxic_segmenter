@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-import pickle
 import sys
 
 import numpy as np
@@ -10,7 +9,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import yaml
-from gensim.models import FastText
 
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -48,7 +46,10 @@ def predict(message: str) -> (list, list):
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
     encoded = [fasttext_model.wv[item] for item in cleaned_tokens]
 
-    preds = F.softmax(model(torch.tensor(np.array(encoded))), dim=1)[:, 1].cpu().detach().numpy()
+    prediction = model(torch.tensor(np.array(encoded)))
+    prediction = prediction.view(-1, prediction.shape[2])
+
+    preds = F.softmax(prediction, dim=1)[:, 1].cpu().detach().numpy()
 
     return tokens, preds
 
@@ -56,6 +57,7 @@ def predict(message: str) -> (list, list):
 if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--config', default='params.yaml', dest='config')
+    args_parser.add_argument('--fasttext_name', default='fasttext_pretrained.model', dest='fasttext_name')
     args = args_parser.parse_args()
 
     with open(fileDir + args.config) as conf_file:
@@ -64,11 +66,21 @@ if __name__ == '__main__':
     model = load_model(fileDir + config['models'])
     logging.info(f'model loaded')
 
-    fasttext_model = load_fasttext_model(fileDir + config['models'])
+    fasttext_model = load_fasttext_model(fileDir + config['models'] + args.fasttext_name)
     logging.info(f'fasttext model loaded')
 
-    text = 'пидрила злоебучий убери свою смазливую морду. собака конченная вот ты кто. знаю я породу этого хуеплета. мазь и словарь проверь'
+    text = """
+    пидрила злоебучий убери свою смазливую морду.
+    собака конченная вот ты кто.
+    знаю я породу этих хуеплетов.
+    мазь и словарь проверь.
+    копать не строить.
+    мне кажется этот пидарок слишком драмматизирует.
+    """
     tokens, preds = predict(text)
 
     for token, pred in zip(tokens, preds):
-        print(f'{token}: {pred:.2f}')
+        if pred > 0.5:
+            print(f'🤬 {token}: {pred:.2f}')
+        else:
+            print(f'{token}: {pred:.2f}')
