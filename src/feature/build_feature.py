@@ -2,13 +2,11 @@ import argparse
 import logging
 import os
 import pickle
-import re
 import sys
 
 import numpy as np
 import pandas as pd
 import yaml
-from typing import Tuple, List
 
 from gensim.models import FastText
 
@@ -42,13 +40,13 @@ def save_fasttext_model(directory_path: str, embedding_model: FastText) -> None:
     logging.info(f'fasttext_model saved in {directory_path}')
 
 
-def load_fasttext_model(directory_path: str) -> FastText:
+def load_fasttext_model(file_name: str) -> FastText:
     """
     Функция для загрузки обученной модели
-    :param directory_path: путь до директории с моделью
+    :param file_name: имя файла с обученной моделью
     :return:
     """
-    vocabulary = FastText.load(directory_path + 'fasttext.model')
+    vocabulary = FastText.load(file_name)
     return vocabulary
 
 
@@ -70,7 +68,7 @@ def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
     return dataframe
 
 
-def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, mode: str) -> tuple:
+def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, fit_fasttext: bool) -> tuple:
     tokens = dataframe['raw_tokens']
     tags = dataframe['tags']
 
@@ -78,13 +76,13 @@ def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, mode: str)
 
     cleaned_tokens = tokens.apply(lambda item: [preprocessor.forward(token) for token in item])
 
-    if mode == 'train':
-        embedding_model = FastText(cleaned_tokens, vector_size=300, min_n=4, max_n=6, window=5, negative=7)
-        # embedding_model.build_vocab(cleaned_tokens)
-        # embedding_model.train(cleaned_tokens)
+    if fit_fasttext:
+        embedding_model = FastText(vector_size=300, min_n=3, max_n=5, window=4)
         save_fasttext_model(embedding_model=embedding_model, directory_path=embedding_model_path)
     else:
-        embedding_model = load_fasttext_model(embedding_model_path)
+        # source: http://docs.deeppavlov.ai/en/master/features/pretrained_vectors.html
+        # usage: FastText.load_fasttext_format('path/to/file/ft_native_300_ru_twitter_nltk_word_tokenize.bin')
+        embedding_model = load_fasttext_model(embedding_model_path + 'fasttext_pretrained.model')
 
     features = cleaned_tokens.apply(
         lambda sentence: np.array([embedding_model.wv[item] for item in sentence])
@@ -108,7 +106,10 @@ if __name__ == '__main__':
     data_processed_dir = fileDir + config['data']['processed']
     embedding_model_dir = fileDir + config['models']
     df = download_dataframe(data_raw_dir, args.mode)
-    features, tags = build_feature(df, embedding_model_dir, args.mode)
+    features, tags = build_feature(dataframe=df,
+                                   embedding_model_path=embedding_model_dir,
+                                   fit_fasttext=False,
+                                   )
 
     dataset = ToxicDataset(features, tags)
 

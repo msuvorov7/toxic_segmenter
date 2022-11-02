@@ -63,8 +63,10 @@ def predict(message):
 
     toxic_smile = '🤬'
     log_message = ''
+    prediction = model(torch.tensor(np.array(encoded)))
+    prediction = prediction.view(-1, prediction.shape[2])
 
-    preds = F.softmax(model(torch.tensor(np.array(encoded))), dim=1)[:, 1].cpu().detach().numpy()
+    preds = F.softmax(prediction, dim=1)[:, 1].cpu().detach().numpy()
     for token, pred, cl in zip(tokens, preds, cleaned_tokens):
         if pred > 0.5:
             log_message += toxic_smile
