@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
-from src.model.model import ToxicSegmenter
+from src.model.cnn_model import ToxicSegmenter
 
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
@@ -61,14 +61,14 @@ def collate_fn(batch) -> dict:
     """
     max_len = max(len(row['feature']) for row in batch)
 
-    feature = torch.empty((len(batch), max_len, 300), dtype=torch.float32)
+    feature = torch.empty((len(batch), max_len, 100), dtype=torch.float32)
     tag = torch.empty((len(batch), max_len), dtype=torch.long)
 
     for idx, row in enumerate(batch):
         to_pad = max_len - len(row['feature'])
         _feat = np.array(row['feature'])
         _tag = row['tag']
-        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 300))), axis=0)
+        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 100))), axis=0)
         tag[idx] = torch.cat((torch.tensor(_tag), torch.zeros(to_pad)))
     return {
         'feature': feature,
@@ -147,6 +147,7 @@ def train(model: nn.Module,
     val_roc = roc_auc_score(y_true, y_pred)
     val_bac = balanced_accuracy_score(y_true, label_pred)
     logging.info(f'balanced accuracy: {val_bac}')
+    mlflow.log_metric('val_bac', val_bac)
 
     th = 0.15
     val_bac = balanced_accuracy_score(y_true, (np.asarray(y_pred) > th).astype(int))
@@ -179,6 +180,7 @@ def test(model: nn.Module,
     logging.info(f'test roc auc: {test_roc}')
     test_bac = balanced_accuracy_score(y_true, label_pred)
     logging.info(f'balanced accuracy: {test_bac}')
+    mlflow.log_metric('test_bac', test_bac)
 
 
 def fit(model: nn.Module,
@@ -220,6 +222,8 @@ def fit(model: nn.Module,
               )
 
         mlflow.log_metric('val_roc_auc', val_roc)
+        mlflow.log_metric('val_loss', val_loss)
+        mlflow.log_metric('train_loss', train_loss)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -279,12 +283,12 @@ if __name__ == '__main__':
     valid_loader = DataLoader(valid_data, batch_size=32, collate_fn=collate_fn, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn, shuffle=False)
 
-    model = ToxicSegmenter(embedding_dim=300, hidden_size=256, output_dim=2)
+    model = ToxicSegmenter(embedding_dim=100, hidden_size=256, output_dim=2)
     logging.info(f'model created')
 
     mlflow.set_experiment('base model')
 
-    with mlflow.start_run():
+    with mlflow.start_run(description='default model | fasttext twitter\n conv + relu | weight [0.12, 0.88])'):
         logging.info(mlflow.get_artifact_uri())
         _, _ = fit(model, train_loader, valid_loader, args.epoch)
         test(model, test_loader, 'cpu')
