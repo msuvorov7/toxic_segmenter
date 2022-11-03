@@ -2,28 +2,44 @@ import argparse
 import logging
 import os
 import pickle
+import random
 import sys
 
+import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import yaml
+from dotenv import load_dotenv
 from sklearn.metrics import roc_auc_score, balanced_accuracy_score
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from sklearn.utils.class_weight import compute_class_weight
 
+
+SEED = 1234
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
 
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
-from src.model.model import ToxicSegmenter
+from src.model.cnn_model import ToxicSegmenter
 
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
+
+load_dotenv()
+remote_server_uri = os.getenv("MLFLOW_TRACKING_URI")
+mlflow.set_tracking_uri(remote_server_uri)
 
 
 logging.basicConfig(
@@ -45,14 +61,14 @@ def collate_fn(batch) -> dict:
     """
     max_len = max(len(row['feature']) for row in batch)
 
-    feature = torch.empty((len(batch), max_len, 300), dtype=torch.float32)
+    feature = torch.empty((len(batch), max_len, 100), dtype=torch.float32)
     tag = torch.empty((len(batch), max_len), dtype=torch.long)
 
     for idx, row in enumerate(batch):
         to_pad = max_len - len(row['feature'])
         _feat = np.array(row['feature'])
         _tag = row['tag']
-        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 300))), axis=0)
+        feature[idx] = torch.cat((torch.tensor(_feat), torch.zeros((to_pad, 100))), axis=0)
         tag[idx] = torch.cat((torch.tensor(_tag), torch.zeros(to_pad)))
     return {
         'feature': feature,
@@ -131,12 +147,40 @@ def train(model: nn.Module,
     val_roc = roc_auc_score(y_true, y_pred)
     val_bac = balanced_accuracy_score(y_true, label_pred)
     logging.info(f'balanced accuracy: {val_bac}')
+    mlflow.log_metric('val_bac', val_bac)
 
     th = 0.15
     val_bac = balanced_accuracy_score(y_true, (np.asarray(y_pred) > th).astype(int))
     logging.info(f'balanced accuracy threshold {th}: {val_bac}')
 
     return train_loss, val_loss, val_roc
+
+
+def test(model: nn.Module,
+         test_data_loader: DataLoader,
+         device: str,
+         ):
+
+    model.eval()
+    y_true, y_pred, label_pred = [], [], []
+    for batch in tqdm(test_data_loader):
+        text = batch['feature'].to(device)
+        labels = batch['tag'].view(-1).to(device)
+
+        prediction = model(text)
+        prediction = prediction.view(-1, prediction.shape[2])
+        label_predict = torch.argmax(prediction, dim=1).view(-1)
+        preds = F.softmax(prediction, dim=1)[:, 1]
+
+        y_true += labels.cpu().detach().numpy().ravel().tolist()
+        y_pred += preds.cpu().detach().numpy().ravel().tolist()
+        label_pred += label_predict.cpu().detach().numpy().ravel().tolist()
+
+    test_roc = roc_auc_score(y_true, y_pred)
+    logging.info(f'test roc auc: {test_roc}')
+    test_bac = balanced_accuracy_score(y_true, label_pred)
+    logging.info(f'balanced accuracy: {test_bac}')
+    mlflow.log_metric('test_bac', test_bac)
 
 
 def fit(model: nn.Module,
@@ -158,7 +202,8 @@ def fit(model: nn.Module,
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.11, 0.89]), dtype=torch.float32))
+    # criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.5, 30.7]), dtype=torch.float32), reduction='mean')
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.12, 0.88]), dtype=torch.float32), reduction='mean')
 
     train_losses = []
     val_losses = []
@@ -175,6 +220,10 @@ def fit(model: nn.Module,
                                                                                       val_loss,
                                                                                       val_roc)
               )
+
+        mlflow.log_metric('val_roc_auc', val_roc)
+        mlflow.log_metric('val_loss', val_loss)
+        mlflow.log_metric('train_loss', train_loss)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -224,12 +273,25 @@ if __name__ == '__main__':
     train_data, valid_data = random_split(train_dataset, [train_size - validation_size, validation_size],
                                           generator=torch.Generator().manual_seed(42)
                                           )
+    y = []
+    for item in train_data:
+        y += item['tag'].tolist()
+    logging.info(f"class_weight: {compute_class_weight(class_weight='balanced', classes=np.unique(y), y=np.array(y))}")
+    logging.info(f'mean: {np.mean(y)*100:.3f}%')
+
     train_loader = DataLoader(train_data, batch_size=32, collate_fn=collate_fn, shuffle=True)
     valid_loader = DataLoader(valid_data, batch_size=32, collate_fn=collate_fn, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn, shuffle=False)
 
-    model = ToxicSegmenter(embedding_dim=300, hidden_size=256, output_dim=2)
+    model = ToxicSegmenter(embedding_dim=100, hidden_size=256, output_dim=2)
     logging.info(f'model created')
 
-    _, _ = fit(model, train_loader, valid_loader, args.epoch)
+    mlflow.set_experiment('base model')
+
+    with mlflow.start_run(description=' + twits | fasttext twitter\n conv + relu | weight [0.12, 0.88])'):
+        logging.info(mlflow.get_artifact_uri())
+        mlflow.log_param('train_data_len', len([item for sublist in train_dataset.tags for item in sublist]))
+        mlflow.log_param('train_data_pos', sum([item for sublist in train_dataset.tags for item in sublist]))
+        _, _ = fit(model, train_loader, valid_loader, args.epoch)
+        test(model, test_loader, 'cpu')
     save_model(model, fileDir + config['models'])
