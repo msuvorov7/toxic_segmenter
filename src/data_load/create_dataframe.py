@@ -50,6 +50,7 @@ def augment(df: pd.DataFrame, probability: float) -> pd.DataFrame():
 
 
 def concat_kaggle_df(directory_path: str) -> None:
+    # https://www.kaggle.com/datasets/alexandersemiletov/toxic-russian-comments
     with open(directory_path + "dataset.txt", "r") as file:
         dataset = file.read().split("\n")
 
@@ -58,11 +59,21 @@ def concat_kaggle_df(directory_path: str) -> None:
 
     df = pd.DataFrame(np.array([labels, text], dtype='object').T, columns=["label", "text"])
 
+    # https://www.kaggle.com/datasets/blackmoon/russian-language-toxic-comments?resource=download
     labeled = pd.read_csv(directory_path + 'labeled.csv')
     labeled.columns = ['text', 'label']
     labeled['label'] = labeled['label'].apply(lambda item: '[INSULT]' if item == 1 else '[NORMAL]')
 
-    df = pd.concat([df, labeled], axis=0)
+    # http://study.mokoron.com
+    twits_cols = ['id', 'tdate', 'name', 'text', 'type', 'rep', 'fav', 'tstcount', 'fol', 'frien', 'listcnt', 'smth']
+    positive_twits = pd.read_csv(directory_path + 'positive.csv', sep=';', header=None)
+    negative_twits = pd.read_csv(directory_path + 'negative.csv', sep=';', header=None)
+    twits = pd.concat([positive_twits, negative_twits], axis=0, ignore_index=True)
+    twits.columns = twits_cols
+    twits['label'] = twits['type'].apply(lambda item: '[INSULT]' if item == -1 else '[NORMAL]')
+    twits = twits[['text', 'label']]
+
+    df = pd.concat([df, labeled, twits], axis=0, ignore_index=True)
     df.to_csv(directory_path + 'dataset.csv', index=False)
     logging.info('dataset from kaggle created')
 
@@ -109,7 +120,7 @@ def create_dataframe(directory_path: str, test_size: float):
     flatten_tag = []
     for tags in dataframe['tags']:
         flatten_tag += tags
-    logging.info(f'{sum(flatten_tag)} toxix of {len(flatten_tag)}')
+    logging.info(f'{sum(flatten_tag)} toxic of {len(flatten_tag)}')
 
     train_df, test_df, _, _ = train_test_split(dataframe,
                                                is_toxic,

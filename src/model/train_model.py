@@ -288,8 +288,10 @@ if __name__ == '__main__':
 
     mlflow.set_experiment('base model')
 
-    with mlflow.start_run(description='default model | fasttext twitter\n conv + relu | weight [0.12, 0.88])'):
+    with mlflow.start_run(description=' + twits | fasttext twitter\n conv + relu | weight [0.12, 0.88])'):
         logging.info(mlflow.get_artifact_uri())
+        mlflow.log_param('train_data_len', len([item for sublist in train_dataset.tags for item in sublist]))
+        mlflow.log_param('train_data_pos', sum([item for sublist in train_dataset.tags for item in sublist]))
         _, _ = fit(model, train_loader, valid_loader, args.epoch)
         test(model, test_loader, 'cpu')
     save_model(model, fileDir + config['models'])
