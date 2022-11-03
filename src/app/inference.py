@@ -48,7 +48,7 @@ with open(fileDir + 'params.yaml') as conf_file:
 model = load_model(fileDir + config['models'])
 logging.info(f'model loaded')
 
-fasttext_model = load_fasttext_model(fileDir + config['models'])
+fasttext_model = load_fasttext_model(fileDir + config['models'] + 'fasttext_pretrained.model')
 logging.info(f'fasttext model loaded')
 
 
