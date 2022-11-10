@@ -4,6 +4,7 @@ import os
 import pickle
 import sys
 
+import compress_fasttext
 import numpy as np
 import pandas as pd
 import yaml
@@ -82,10 +83,11 @@ def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, fit_fastte
     else:
         # source: http://docs.deeppavlov.ai/en/master/features/pretrained_vectors.html
         # usage: FastText.load_fasttext_format('path/to/file/ft_native_300_ru_twitter_nltk_word_tokenize.bin')
-        embedding_model = load_fasttext_model(embedding_model_path + 'fasttext_pretrained.model')
+        # embedding_model = load_fasttext_model(embedding_model_path + 'fasttext_pretrained.model')
+        embedding_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(embedding_model_path + 'tiny_fasttext.model')
 
     features = cleaned_tokens.apply(
-        lambda sentence: np.array([embedding_model.wv[item] for item in sentence])
+        lambda sentence: np.array([embedding_model[item] for item in sentence])
     )
 
     return features, tags
