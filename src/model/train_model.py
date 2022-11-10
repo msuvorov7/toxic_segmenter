@@ -250,7 +250,7 @@ def save_model(model: nn.Module, directory_path: str) -> None:
 if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--config', default='params.yaml', dest='config')
-    args_parser.add_argument('--epoch', default=5, type=int, dest='epoch')
+    args_parser.add_argument('--epoch', default=3, type=int, dest='epoch')
     args = args_parser.parse_args()
 
     assert args.epoch > 0
@@ -288,7 +288,7 @@ if __name__ == '__main__':
 
     mlflow.set_experiment('base model')
 
-    with mlflow.start_run(description=' + twits | fasttext twitter\n conv + relu | weight [0.12, 0.88])'):
+    with mlflow.start_run(description='twitter corpus | aigment 0.1 | tiny fasttext twitter\n conv + relu | weight [0.12, 0.88]) | epoch 3'):
         logging.info(mlflow.get_artifact_uri())
         mlflow.log_param('train_data_len', len([item for sublist in train_dataset.tags for item in sublist]))
         mlflow.log_param('train_data_pos', sum([item for sublist in train_dataset.tags for item in sublist]))

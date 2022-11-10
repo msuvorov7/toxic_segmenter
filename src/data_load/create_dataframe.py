@@ -80,35 +80,22 @@ def concat_kaggle_df(directory_path: str) -> None:
 
 def create_dataframe(directory_path: str, test_size: float):
     vocab = pd.read_csv(directory_path + 'toxic_vocabulary.csv')['word'].values
+    preprocessor = Preprocessor()
 
-    df = pd.read_csv(directory_path + 'dataset.csv')
+    df = pd.read_csv(directory_path + 'twitter_corpus.csv', engine='python').sample(1_000_000, random_state=42)
     logging.info(f'dataset loaded: {df.shape}')
 
-    tokens = df['text'].apply(lambda item: tokenize(item))
-    cleaned_tokens = tokens.apply(lambda item: [clear_token(token) for token in item])
-    cleaned_tags = cleaned_tokens.apply(lambda item: [1 if (token in vocab) else 0 for token in item])
+    df.to_csv(directory_path + 'twitter_sample.csv', index=False)
 
-    logging.info('start preprocessor')
-    preprocessor = Preprocessor()
-    processed_tokens = tokens.apply(lambda item: [preprocessor.forward(token) for token in item])
-    dirty_tags = processed_tokens.apply(lambda item: [1 if (token in vocab) else 0 for token in item])
-    logging.info('end preprocessor')
-
-    tags = []
-    for cl_sent, dr_sent in zip(cleaned_tags, dirty_tags):
-        sentence = []
-        for cl_tok, dr_tok in zip(cl_sent, dr_sent):
-            if (cl_tok == 1) or (dr_tok == 1):
-                sentence.append(1)
-            else:
-                sentence.append(0)
-        tags.append(sentence)
+    tokens = df['text'].apply(str).apply(lambda item: tokenize(item))
+    tags = tokens.apply(lambda item: [1 if preprocessor.forward(token) in vocab else 0 for token in item])
+    logging.info('dataset tokenized')
 
     dataframe = pd.DataFrame(np.array([tokens, tags], dtype='object').T, columns=['raw_tokens', 'tags'])
 
-    # logging.info('starting augmentation...')
-    # dataframe = augment(dataframe, 0.0)
-    # logging.info('end augmentation')
+    logging.info('starting augmentation...')
+    dataframe = augment(dataframe, 0.1)
+    logging.info('end augmentation')
 
     is_toxic = dataframe['tags'].apply(lambda item: 1 if sum(item) > 0 else 0)
 

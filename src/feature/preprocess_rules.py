@@ -3,7 +3,8 @@ import re
 
 class Preprocessor:
     def __init__(self):
-        self.noise_char_reg = re.compile(r'[.,!?"()-_—:;«»=+#%&*№1234567890\\/\[\]|⁉~]')
+        # self.noise_char_reg = re.compile(r'[.,!?"()-_—:;«»=±+#%&*№1234567890\\/\[\]|⁉~]')
+        self.noise_char_reg = re.compile('[^a-zA-Zа-яА-ЯЁё]')
         self.emoji_pattern = re.compile(
             "["
             "\U0001F1E0-\U0001F1FF"  # flags (iOS)
@@ -76,6 +77,7 @@ class Preprocessor:
         token = token.replace('1', 'л')
         token = token.replace('4', 'ч')
         token = token.replace('’', 'ь')
+        token = token.replace('ё', 'е')
         token = token.replace('🆘', 'sos')
         return token
 
@@ -87,10 +89,10 @@ class Preprocessor:
 
     def forward(self, token: str) -> str:
         lower_token = token.lower()
-        # lower_token = self.replace_symbol_to_ru(lower_token)
-        lower_token = self.remove_emoji(lower_token)
+        lower_token = self.replace_symbol_to_ru(lower_token)
+        # lower_token = self.remove_emoji(lower_token)
         lower_token = self.remove_noise(lower_token)
-        # lower_token = self.remove_duplicated_chars(lower_token)
+        lower_token = self.remove_duplicated_chars(lower_token)
         # lower_token = self.translit(lower_token)
 
         return lower_token
