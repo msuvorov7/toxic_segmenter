@@ -244,6 +244,15 @@ def save_model(model: nn.Module, directory_path: str) -> None:
         os.makedirs(directory_path)
     model_path = directory_path + 'model.torch'
     torch.save(model, model_path)
+
+    dummy_input = torch.randn(10, 100)
+    torch.onnx.export(
+        model,
+        dummy_input,
+        directory_path + 'segmenter.onnx',
+        input_names=['input'],
+        dynamic_axes={"input": {0: "width"}})
+
     logging.info(f'model saved: {model_path}')
 
 
