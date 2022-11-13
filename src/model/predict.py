@@ -15,9 +15,8 @@ sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
-from src.feature.preprocess_rules import Preprocessor
+from src.utils.preprocess_rules import Preprocessor
 from src.data_load.create_dataframe import tokenize
-from src.feature.build_feature import load_fasttext_model
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
