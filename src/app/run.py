@@ -1,105 +1,91 @@
+import json
 import logging
 import os
-import sys
-
 import numpy as np
-import torch
-import yaml
-from dotenv import load_dotenv
-
-import torch.nn.functional as F
-
+import compress_fasttext
+import onnxruntime
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
 
-sys.path.insert(0, os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-))
+from preprocess_rules import Preprocessor
 
-from src.data_load.create_dataframe import tokenize
-from src.feature.build_feature import load_fasttext_model
-from src.model.predict import load_model
-from src.feature.preprocess_rules import Preprocessor
-
-fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-load_dotenv()
-
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-
-bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
+log = logging.getLogger(__name__)
 
 
-with open(fileDir + 'params.yaml') as conf_file:
-    config = yaml.safe_load(conf_file)
+def tokenize(text: str) -> list:
+    return text.split()
 
 
-model = load_model(fileDir + config['models'])
-logging.info(f'model loaded')
-
-fasttext_model = load_fasttext_model(fileDir + config['models'] + 'fasttext_pretrained.model')
-logging.info(f'fasttext model loaded')
+async def welcome_start(message):
+    await message.answer('Hello')
 
 
-def predict(text: str) -> str:
-    tokens = tokenize(text)
+async def predict(message: types.message):
+    ort_session = onnxruntime.InferenceSession('segmenter.onnx')
+    log.info(f'segmenter model loaded')
+
+    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
+        'tiny_fasttext.model'
+    )
+    log.info(f'fasttext model loaded')
+
+    msg = message.text
+    tokens = tokenize(msg)
     preprocessor = Preprocessor()
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
-    encoded = [fasttext_model.wv[item] for item in cleaned_tokens]
+    encoded = [fasttext_model[item] for item in cleaned_tokens]
+
+    ort_inputs = {ort_session.get_inputs()[0].name: encoded}
+    ort_outs = ort_session.run(None, ort_inputs)
+    labels = np.argmax(ort_outs[0][0], axis=1)
 
     toxic_smile = '🤬'
-    log_message = ''
-    prediction = model(torch.tensor(np.array(encoded)))
-    prediction = prediction.view(-1, prediction.shape[2])
-
-    preds = F.softmax(prediction, dim=1)[:, 1].cpu().detach().numpy()
-    for token, pred, cl in zip(tokens, preds, cleaned_tokens):
-        if pred > 0.5:
-            log_message += toxic_smile
-        log_message += f'{token}| {cl} |{pred:.3f}\n'
-
-    print(log_message)
-
     result_message = ''
 
-    for token, pred in zip(tokens, preds):
+    for token, pred in zip(tokens, labels):
         if pred > 0.5:
             result_message += f'{toxic_smile} '
             continue
         result_message += f'{token} '
 
-    return result_message
-
-
-@dp.message_handler(commands=['start'])
-async def welcome_start(message):
-    await message.answer('Hello')
-
-
-@dp.message_handler(lambda message: message.caption is not None, content_types=['photo'])
-async def parse_photo(message: types.message):
-    result_message = predict(message.caption)
-    print(message.caption)
-    await message.answer_photo(photo=message.photo[-1].file_id, caption=result_message)
-
-
-@dp.message_handler(content_types=['text'])
-async def parse_text(message: types.message):
-    text = message.text
-    print(text)
-    result_message = predict(text)
     await message.answer(text=result_message)
 
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+# Functions for Yandex.Cloud
+async def register_handlers(dp: Dispatcher):
+    """Registration all handlers before processing update."""
+
+    dp.register_message_handler(welcome_start, commands=['start'])
+    dp.register_message_handler(predict, content_types=['text'])
+
+    log.debug('Handlers are registered.')
+
+
+async def process_event(event, dp: Dispatcher):
+    """
+    Converting an Yandex.Cloud functions event to an update and
+    handling tha update.
+    """
+
+    update = json.loads(event['body'])
+    log.debug('Update: ' + str(update))
+
+    Bot.set_current(dp.bot)
+    update = types.Update.to_object(update)
+    await dp.process_update(update)
+
+
+async def handler(event, context):
+    """Yandex.Cloud functions handler."""
+
+    if event['httpMethod'] == 'POST':
+        # Bot and dispatcher initialization
+        bot = Bot(os.environ.get('TELEGRAM_BOT_TOKEN'))
+        dp = Dispatcher(bot)
+
+        await register_handlers(dp)
+        await process_event(event, dp)
+
+        return {'statusCode': 200, 'body': 'ok'}
+    return {'statusCode': 405}

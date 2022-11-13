@@ -3,12 +3,15 @@ import os
 import sys
 
 import numpy as np
-import telebot
 import torch
 import yaml
 from dotenv import load_dotenv
 
 import torch.nn.functional as F
+
+from aiogram import Bot, types
+from aiogram.dispatcher import Dispatcher
+from aiogram.utils import executor
 
 sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -17,7 +20,7 @@ sys.path.insert(0, os.path.dirname(
 from src.data_load.create_dataframe import tokenize
 from src.feature.build_feature import load_fasttext_model
 from src.model.predict import load_model
-from src.feature.preprocess_rules import Preprocessor
+from src.utils.preprocess_rules import Preprocessor
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -33,12 +36,8 @@ load_dotenv()
 
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-bot = telebot.TeleBot(TOKEN)
-
-
-@bot.message_handler(commands=['start'])
-def welcome_start(message):
-    bot.send_message(message.chat.id, 'Hello')
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
 
 
 with open(fileDir + 'params.yaml') as conf_file:
@@ -52,10 +51,7 @@ fasttext_model = load_fasttext_model(fileDir + config['models'] + 'fasttext_pret
 logging.info(f'fasttext model loaded')
 
 
-@bot.message_handler(content_types=['text'])
-def predict(message):
-    text = message.text
-    print(text)
+def predict(text: str) -> str:
     tokens = tokenize(text)
     preprocessor = Preprocessor()
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
@@ -82,11 +78,28 @@ def predict(message):
             continue
         result_message += f'{token} '
 
-    # bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
-    bot.send_message(chat_id=message.chat.id, text=result_message)
+    return result_message
 
 
-bot.polling()
+@dp.message_handler(commands=['start'])
+async def welcome_start(message):
+    await message.answer('Hello')
+
+
+@dp.message_handler(lambda message: message.caption is not None, content_types=['photo'])
+async def parse_photo(message: types.message):
+    result_message = predict(message.caption)
+    print(message.caption)
+    await message.answer_photo(photo=message.photo[-1].file_id, caption=result_message)
+
+
+@dp.message_handler(content_types=['text'])
+async def parse_text(message: types.message):
+    text = message.text
+    print(text)
+    result_message = predict(text)
+    await message.answer(text=result_message)
+
 
 if __name__ == '__main__':
-    print(TOKEN)
+    executor.start_polling(dp, skip_updates=True)
