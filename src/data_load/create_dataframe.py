@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(
 ))
 
 from src.utils.augmentator import Augmentator
-from src.feature.preprocess_rules import Preprocessor
+from src.utils.preprocess_rules import Preprocessor
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
