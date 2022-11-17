@@ -11,13 +11,13 @@ class ToxicSegmenter(nn.Module):
             hidden_size: int,
             output_dim: int,
             dropout=0.5,
-            is_bidirectional: bool = False,
+            is_bidirectional: bool = True,
     ):
         super().__init__()
 
         self.lstm = nn.LSTM(input_size=embedding_dim,
                             hidden_size=hidden_size,
-                            num_layers=1,
+                            num_layers=3,
                             batch_first=True,
                             bidirectional=is_bidirectional)
 
@@ -28,6 +28,8 @@ class ToxicSegmenter(nn.Module):
                           bidirectional=is_bidirectional
                           )
 
+        self.dropout = nn.Dropout(p=dropout)
+
         self.fc = nn.Linear((int(is_bidirectional) + 1) * hidden_size, output_dim)
 
     def forward(self, text):
@@ -36,4 +38,4 @@ class ToxicSegmenter(nn.Module):
         # x, (_, _) = self.lstm(text)
         # return self.fc(x)
         x, hidden = self.gru(text)
-        return self.fc(x)
+        return self.fc(self.dropout(x))
