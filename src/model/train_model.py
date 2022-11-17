@@ -7,6 +7,7 @@ import sys
 
 import mlflow
 import numpy as np
+import onnx
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -253,6 +254,11 @@ def save_model(model: nn.Module, directory_path: str) -> None:
         input_names=['input'],
         dynamic_axes={"input": {0: "width"}})
 
+    mlflow.onnx.log_model(artifact_path='models',
+                          onnx_model=onnx.load(directory_path + 'segmenter.onnx'),
+                          registered_model_name='segmenter.onnx',
+                          )
+
     logging.info(f'model saved: {model_path}')
 
 
@@ -297,10 +303,10 @@ if __name__ == '__main__':
 
     mlflow.set_experiment('base model')
 
-    with mlflow.start_run(description='twitter corpus | aigment 0.1 | tiny fasttext twitter\n conv + relu | weight [0.12, 0.88]) | epoch 3'):
+    with mlflow.start_run(description='twitter corpus | augment 0.1 | tiny fasttext twitter\n conv2 + pool + relu | weight [0.12, 0.88]) | epoch 3'):
         logging.info(mlflow.get_artifact_uri())
         mlflow.log_param('train_data_len', len([item for sublist in train_dataset.tags for item in sublist]))
         mlflow.log_param('train_data_pos', sum([item for sublist in train_dataset.tags for item in sublist]))
         _, _ = fit(model, train_loader, valid_loader, args.epoch)
         test(model, test_loader, 'cpu')
-    save_model(model, fileDir + config['models'])
+        save_model(model, fileDir + config['models'])
