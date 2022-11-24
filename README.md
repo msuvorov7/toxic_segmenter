@@ -83,7 +83,8 @@ flag in [build_feature.py](./src/feature/build_feature.py)
 - `docker tag test_toxic_segmenter \cr.yandex/<registry_id>/test_toxic_segmenter:latest`
 - `docker push \cr.yandex/<registry_id>/test_toxic_segmenter:latest`
 - `yc serverless container create --name test-toxic-segmenter`
-- ```
+- release version:
+  ```
   yc serverless container revision deploy \
   --container-name test-toxic-segmenter \
   --image cr.yandex/<registry_id>/test_toxic_segmenter:latest \
