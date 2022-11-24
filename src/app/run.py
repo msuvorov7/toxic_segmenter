@@ -32,8 +32,8 @@ def tokenize(text: str) -> list:
     return text.split()
 
 
-@app.post('/predict')
-def predict(msg=Form()):
+@app.post('/predict', response_class=HTMLResponse)
+def predict(request: Request, msg: str = Form(...)):
 
     logging.info(f'message: {msg}')
 
@@ -55,7 +55,7 @@ def predict(msg=Form()):
             continue
         result_message += f'{token} '
 
-    return HTMLResponse(content=f"<p>{result_message}</p>")
+    return templates.TemplateResponse("index.html", context={"request": request, "result": result_message})
 
 
 @app.get("/")
