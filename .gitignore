@@ -1,0 +1,3 @@
+deploy_fastapi.sh
+deploy_serverless_function.sh
+serverless_functions.zip

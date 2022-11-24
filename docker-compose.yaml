@@ -1,6 +1,12 @@
 version: '3.8'
 
 services:
+  app:
+    image: test_toxic_segmenter
+    container_name: test_toxic_segmenter
+    ports:
+      - "8000:80"
+
   minio:
     container_name: minio_toxic_segmenter
     hostname: minio
