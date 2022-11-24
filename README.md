@@ -1,90 +1,141 @@
 # toxic_segmenter
 
-Модель для поиска токсичной лексики в тексте
+Model for find and replacement toxic words for Russian Language
 
-## Цель проекта
-Повысить культуру речи в диалоговых переписках посредством нахождения оскорбительной речи.
+## Install
+### Create .env file
+- create `.env` file like `.env.example` in root dir
+- create credentials for `minio` in `~/.aws/credentials` like that:
+  ```
+  [default]
+  AWS_ACCESS_KEY_ID=username
+  AWS_SECRET_ACCESS_KEY=password
+  AWS_S3_BUCKET=arts
+  ```
+- set `AWS_*` keys in `.env` with credentials from `~/.aws/credentials`
+- set `POSTGRES_*` keys like:
+  ```
+  POSTGRES_USER=root
+  POSTGRES_PASSWORD=root
+  POSTGRES_DB=test_db
+  ```
+- make sure that keys in `.env` and `docker-compose.yml` are equal
 
-## Финальный продукт
-На данный момент минимальной задачей является успешный поиск и сокрытие нецензурных слов 
-в сообщении 
-с акцентом на все богатство словообразования русского языка и уловок отправителя (замена 
-букв на латинские, повторения букв, замена на цифры и похожие знаки).
+### Register postgres db in pgAdmin
+- open 127.0.0.1:5050 in browser
+- login with creds in docker-compose.yaml (admin@admin.com/root)
+- `docker ps` and find `CONTAINER ID` for postgres
+- `docker inspect <CONTAINER ID>` and find value for key `IPAddress`
+- go back to browser and register Server (Servers -> Register -> Server -> Connection -> fill fields 
+with `IPAddress`/`POSTGRES_USER`/`POSTGRES_PASSWORD`)
 
-Развитем этой идеи хочется видеть модель, способную изменять стиль сообщения на более 
-уважительный к собеседнику.
+### Model Registry in MLflow
+- open 127.0.0.1:9001 in browser
+- login with creds in docker-compose.yaml (username/password)
+- create bucket `arts` as in .env file (`AWS_S3_BUCKET`)
 
-В качестве сервиса выбор пал на Телеграм-бота.
-
-## Этапы разработки
-Данный план - это не более чем набросок для структуризации получаемых знаний и будет 
-модифицироваться при продвижении разработки проекта.
-
-- Определение целей и задач проекта, его ограничений, доступных на момент разрабтки 
-ресурсов, определение метрик оценивания полученного результата
-- Выбор и подготовка обучающих данных
-- Выбор модели ML, ее обучение, построение первичного baseline-решения
-- Тюнинг модели с возможными откатами к предыдущим этапам для повышения финального 
-качества
-- Написание полного пайплайна работы модели в черновом варианте
-- Перенос пайплайна в структурированный репозиторий с применением MLOps практик
-- Развертывание модели, CI/CD процессы
-- Инференс модели на платформе Телеграм, первичные тесты, проверка на 
-отказоустойчивость
-- Реализовать мониторинг модели для отследивания data-drift
-- Автоматизировать по возможности пайплайн со своевременным переобучение модели 
-и online-валидацией
-
-## Отчет по работе
-
-### 06/10
-На данный момент определены цели проекта, составлен план действий и проведен 
-первичный анализ в Jupyter Notebook. Должен сразу предупредить, что считаю 
-этот инструмент наиболее подходящим на начальном этапе, поскольку он позволяет
-с высокой скоростью проверять различные гипотезы, писать черновой код, который 
-подвергнется многократной доработке или переделке. С версионирование такого 
-подхода, конечно, мало что приятного выйдет, плюс время все же тратится на 
-оформление блокнота.
-
-Саму задачу можно свести к классификации токенов-слов на 2 класса. Датасет найден 
-на просторах huggingface, но его разметка меня не вполне устраивает, многие на мой 
-взгляд, сочентания не отмечены как оскорбителные, поэтому придется подумать над 
-доразметкой. Архитектура модели для baseline-решения крайне проста: embedding -> LSTM -> Linear.
+### MLFlow
+- `docker build -f Docker/mlflow_image/Dockerfile -t mlflow_server .`
 
 
-Уже сейчас сформировалиь идеи, которыми хочется воспользоваться при решении задачи.
-Кажется, что может выстрелить идея с FastText-эмбедингами, поскольку есть потенциал 
-справляться с умышленной "порчей" таргетных слов. Также хочется применить аугментации 
-над текстом, чтобы подготовить модель к нестандартным паттернам написания слов.
+### Train Pipeline
+Start docker containers with command `docker-compose up -d --build`. Container with name
+`test_toxic_segmenter` will not start in first run because we didn't fit our model and didn't 
+build this image.
 
-### 13/10
-В голову пришла идея попробовать подход с semi-supervised learning для доразметки тегов,
-но навскидку ничего не вышло, нет хорошей кластерной структуры в 2d. Набросал stages для 
-dvc, чтобы можно было основные моменты запускать для тестов.
+For running dvc pipeline you need to get dataset from http://study.mokoron.com
+in data/raw/ directory. In my repo this dataset called `twitter_corpus.csv`:
 
-Смотрел несколько статей по своей темматике. Народ пишет, что BERT показывает лучшие результаты,
-но в срезе классификации. Полноценно задачу с поиском мало у кого встретишь. Я все же надеялся 
-найти способ автоматической разметки, поскольку это пригодилось бы в последующем переобучении.
-Заметил один хак, который можно использовать для обхода модели: можно использовать более изысканные 
-словообразования (лучше совмещать с вполне чистой лексикой). Из-за этого модель на FastText выдает
-наибольшее сходство с нетоксичными эмбеддингами. Припас для себя несколько таких кейсов для теста.
+|text                                                                  |
+|----------------------------------------------------------------------|
+|Пропавшая в Хабаровске школьница почти сутки провела в яме у коллектор|
+|"ЛЕНТА, Я СЕГОДНЯ ПОЛГОДА ДИРЕКШИОНЕЕЕЕР! С:                          |
+|...                                                                   |
 
-### 20/10
-Решил пойти немного другим путем и сконцентироваться на построении базового пайплайна, чтобы создать
-работающие интеграции между экспериментами, хранилищем и выкаткой модели. Хотелось бы сделать максимально
-незвависимыми части с подготовкой данных (там есть идеи по доразметке, токенизации, аугментации), 
-непосредственно разработкой и тестированием модели, реализацией конечного сервиса.
+You also need a `toxic_vocabulary.csv`:
 
-Удалось перевести пайплайн по обучению на рельсы dvc, написать простой [скрипт](./src/model/predict.py)
-для проверки на своих данных, приспособить под проект mlflow + minio + postgres в виде docker-контейнеров
-(но пока это в ветке `feature/mlops_stuff`). Пока не успел, но надо бы постепенно писать документацию и
-инструкцию по развертке.
+|word    |
+|--------|
+|отбросов|
+|свинью  |
+|дауна   |
+|...     |
 
-### 27/10
-Нашел большой [датасет](https://www.kaggle.com/datasets/alexandersemiletov/toxic-russian-comments/code) и 
-написал для него полу автомаическую разметку на основе поиска слов в словаре. Словарь перенес из таргетов
-предыдущего датасета и добавил новых примеров. Часть слов добавлял через модель логистической регрессии:
-обучил её классификации токенов на fasttext эмбеддингах и добавил топ слов с самым высоким скором. Планирую
-в будущем подумать над оптимизацией процесса апдейта словаря.
 
-Также написал и проверил скрипт для tg-бота
+Run with command `dvc repro`. 
+
+**Warning**: If you want to create and fit fasttext model, you should to make True `fit_fasttext` 
+flag in [build_feature.py](./src/feature/build_feature.py)
+
+### Start App
+- `docker build --platform=linux/amd64 --pull --rm -f Docker/toxic_segmenter/Dockerfile -t test_toxic_segmenter:latest .`
+- `docker-compose up -d --build`
+- open 127.0.0.1:8000 in your browser and check results
+
+### Deploy on Yandex Serverless Container
+- [install](https://cloud.yandex.ru/docs/cli/quickstart) yandex cli:
+`curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash`
+- get `OAuth-token`
+- run `yc init` and paste `OAuth-token`. Set other params with instruction-link before
+- [create](https://cloud.yandex.ru/docs/iam/operations/sa/create) yandex server account (`yc iam service-account create --name tester`)
+- `yc container registry create --name toxic-segmenter`
+- `yc container registry configure-docker`
+- `docker tag test_toxic_segmenter \cr.yandex/<registry_id>/test_toxic_segmenter:latest`
+- `docker push \cr.yandex/<registry_id>/test_toxic_segmenter:latest`
+- `yc serverless container create --name test-toxic-segmenter`
+- release version:
+  ```
+  yc serverless container revision deploy \
+  --container-name test-toxic-segmenter \
+  --image cr.yandex/<registry_id>/test_toxic_segmenter:latest \
+  --cores 1 \
+  --memory 1GB \
+  --concurrency 1 \
+  --execution-timeout 30s \
+  --service-account-id <service_acc_id>
+  ```
+
+### Deploy on Yandex Serverless Functions (telegram bot)
+- [install](https://cloud.yandex.ru/docs/cli/quickstart) yandex cli:
+`curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash`
+- get `OAuth-token`
+- run `yc init` and paste `OAuth-token`. Set other params with instruction-link before
+- [create](https://cloud.yandex.ru/docs/iam/operations/sa/create) yandex server account (`yc iam service-account create --name tester`)
+- [create](https://cloud.yandex.ru/docs/storage/operations/buckets/create) s3 bucket `toxic-bucket` for zip archive
+- [install](https://cloud.yandex.ru/docs/storage/tools/aws-cli) and configure `aws cli`
+- create `zip` archive: `python src/telegram_bot/serverless_functions.py`
+- upload on bucket:
+  ```
+  aws --endpoint-url=https://storage.yandexcloud.net/ \
+      --profile yandex \
+      s3 cp \
+      servless_functions.zip \
+      s3://toxic-bucket/
+  ```
+- create cloud function: `yc serverless function create --name=toxic-segmenter`
+- make public invoke: `yc serverless function allow-unauthenticated-invoke toxic-segmenter`
+- upload new version:
+  ```
+  yc serverless function version create \
+    --function-name=toxic-segmenter \
+    --runtime python39 \
+    --entrypoint run.handler \
+    --memory 1024m \
+    --execution-timeout 3s \
+    --package-bucket-name toxic-bucket \
+    --package-object-name servless_functions.zip \
+    --add-service-account id=<id>,alias=<alias> \
+    --environment TELEGRAM_BOT_TOKEN=<tg-token>
+  ```
+- set webhook for telegram:
+  - paste into browser: `https://api.telegram.org/bot<tg-token>/setWebHook?url=<toxic-segmenter-link>`
+  - or make this with terminal:
+       ```
+       curl \
+       --request POST \
+       --url https://api.telegram.org/bot<tg-token>/setWebhook \
+       --header 'content-type: application/json' \
+       --data '{"url": "<toxic-segmenter-link>"}'
+       ```
+
+**Warning**: after the local launch of the telegram bot, you must re-install the webhook on Cloud Functions

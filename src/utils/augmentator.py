@@ -25,7 +25,7 @@ class Augmentator:
             'м': ['m'],
             'н': ['n'],
             'о': ['o', '0'],
-            'п': ['p'],
+            'п': ['p', 'n'],
             'р': ['r'],
             'с': ['s', '$', 'c'],
             'т': ['t'],
@@ -47,12 +47,15 @@ class Augmentator:
             'а': 'о',
             'о': 'а',
             'е': 'и',
+            'и': 'е',
             'м': 'н',
             'н': 'м',
             'в': 'ф',
             'ф': 'в',
             'у': 'ю',
             'ю': 'у',
+            'б': 'п',
+            'я': 'е',
         }
 
     def _is_empty_token(self, token: str) -> bool:
@@ -90,7 +93,7 @@ class Augmentator:
 
         p = np.random.rand()
         if p <= self.probability:
-            replace_num = np.random.choice(np.array(len(token)))
+            replace_num = np.random.choice(np.array(len(token))) // 2
             for _ in range(replace_num):
                 char = random.choice(list(token))
                 if char in self.ru_2_lat:

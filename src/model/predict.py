@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 
+import compress_fasttext
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,9 +15,8 @@ sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
-from src.feature.preprocess_rules import Preprocessor
+from src.utils.preprocess_rules import Preprocessor
 from src.data_load.create_dataframe import tokenize
-from src.feature.build_feature import load_fasttext_model
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -44,7 +44,7 @@ def predict(message: str) -> (list, list):
     tokens = tokenize(message)
     preprocessor = Preprocessor()
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
-    encoded = [fasttext_model.wv[item] for item in cleaned_tokens]
+    encoded = [fasttext_model[item] for item in cleaned_tokens]
 
     prediction = model(torch.tensor(np.array(encoded)))
     prediction = prediction.view(-1, prediction.shape[2])
@@ -57,7 +57,8 @@ def predict(message: str) -> (list, list):
 if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--config', default='params.yaml', dest='config')
-    args_parser.add_argument('--fasttext_name', default='fasttext_pretrained.model', dest='fasttext_name')
+    # args_parser.add_argument('--fasttext_name', default='fasttext_pretrained.model', dest='fasttext_name')
+    args_parser.add_argument('--fasttext_name', default='tiny_fasttext.model', dest='fasttext_name')
     args = args_parser.parse_args()
 
     with open(fileDir + args.config) as conf_file:
@@ -66,7 +67,8 @@ if __name__ == '__main__':
     model = load_model(fileDir + config['models'])
     logging.info(f'model loaded')
 
-    fasttext_model = load_fasttext_model(fileDir + config['models'] + args.fasttext_name)
+    # fasttext_model = load_fasttext_model(fileDir + config['models'] + args.fasttext_name)
+    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(fileDir + config['models'] + args.fasttext_name)
     logging.info(f'fasttext model loaded')
 
     text = """
@@ -76,6 +78,8 @@ if __name__ == '__main__':
     мазь и словарь проверь.
     копать не строить.
     мне кажется этот пидарок слишком драмматизирует.
+    еб@нько прикрой, пидрк.
+    пиздацирк какой-то.
     """
     tokens, preds = predict(text)
 

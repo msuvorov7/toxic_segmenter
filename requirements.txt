@@ -1,5 +1,4 @@
 numpy~=1.23.3
-telebot~=0.0.4
 torch~=1.12.1
 PyYAML~=6.0
 python-dotenv~=0.21.0
@@ -8,3 +7,10 @@ matplotlib~=3.6.0
 scikit-learn~=1.1.2
 tqdm~=4.64.1
 pandas~=1.5.0
+aiogram~=2.22.2
+mlflow~=1.29.0
+sklearn~=0.0
+onnxruntime~=1.13.1
+uvicorn~=0.20.0
+fastapi~=0.87.0
+onnx~=1.12.0
