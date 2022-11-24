@@ -13,12 +13,12 @@ sys.path.insert(0, os.path.dirname(
 
 
 def create_archive(models_path: str) -> None:
-    with zipfile.ZipFile('servless_functions.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile('serverless_functions.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
         zf.write(models_path + 'tiny_fasttext.model', 'tiny_fasttext.model')
         zf.write(models_path + 'segmenter.onnx', 'segmenter.onnx')
         zf.write(fileDir + 'src/utils/preprocess_rules.py', 'preprocess_rules.py')
-        zf.write(fileDir + 'src/app/run.py', 'run.py')
-        zf.write(fileDir + 'src/app/requirements.txt', 'requirements.txt')
+        zf.write(fileDir + 'src/telegram_bot/run.py', 'run.py')
+        zf.write(fileDir + 'src/telegram_bot/requirements.txt', 'requirements.txt')
 
 
 if __name__ == '__main__':
