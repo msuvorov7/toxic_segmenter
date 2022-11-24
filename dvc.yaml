@@ -33,10 +33,3 @@ stages:
       - data/processed/test_dataset.pkl
     outs:
       - models/model.torch
-
-  servless_functions:
-    cmd: python src/app/servless_functions.py
-    deps:
-      - src/app/servless_functions.py
-      - models/model.torch
-      - src/utils/preprocess_rules.py
