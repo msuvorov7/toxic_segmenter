@@ -1,36 +1,42 @@
-import json
 import logging
 import os
-import numpy as np
+import sys
+
 import compress_fasttext
+import numpy as np
 import onnxruntime
-from aiogram import Bot, types
-from aiogram.dispatcher import Dispatcher
-from aiogram.utils import executor
+import uvicorn
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
-from preprocess_rules import Preprocessor
+from src.utils.preprocess_rules import Preprocessor
 
-log = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
+
+fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load('models/tiny_fasttext.model')
+
+ort_session = onnxruntime.InferenceSession('models/segmenter.onnx')
 
 
 def tokenize(text: str) -> list:
     return text.split()
 
 
-async def welcome_start(message):
-    await message.answer('Hello')
+@app.post('/predict')
+def predict(msg=Form()):
 
+    logging.info(f'message: {msg}')
 
-async def predict(message: types.message):
-    ort_session = onnxruntime.InferenceSession('segmenter.onnx')
-    log.info(f'segmenter model loaded')
-
-    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
-        'tiny_fasttext.model'
-    )
-    log.info(f'fasttext model loaded')
-
-    msg = message.text
     tokens = tokenize(msg)
     preprocessor = Preprocessor()
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
@@ -49,43 +55,13 @@ async def predict(message: types.message):
             continue
         result_message += f'{token} '
 
-    await message.answer(text=result_message)
+    return HTMLResponse(content=f"<p>{result_message}</p>")
 
 
-# Functions for Yandex.Cloud
-async def register_handlers(dp: Dispatcher):
-    """Registration all handlers before processing update."""
-
-    dp.register_message_handler(welcome_start, commands=['start'])
-    dp.register_message_handler(predict, content_types=['text'])
-
-    log.debug('Handlers are registered.')
+@app.get("/")
+async def main(request: Request):
+    return templates.TemplateResponse("index.html", context={"request": request})
 
 
-async def process_event(event, dp: Dispatcher):
-    """
-    Converting an Yandex.Cloud functions event to an update and
-    handling tha update.
-    """
-
-    update = json.loads(event['body'])
-    log.debug('Update: ' + str(update))
-
-    Bot.set_current(dp.bot)
-    update = types.Update.to_object(update)
-    await dp.process_update(update)
-
-
-async def handler(event, context):
-    """Yandex.Cloud functions handler."""
-
-    if event['httpMethod'] == 'POST':
-        # Bot and dispatcher initialization
-        bot = Bot(os.environ.get('TELEGRAM_BOT_TOKEN'))
-        dp = Dispatcher(bot)
-
-        await register_handlers(dp)
-        await process_event(event, dp)
-
-        return {'statusCode': 200, 'body': 'ok'}
-    return {'statusCode': 405}
+if __name__ == '__main__':
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "80")), log_level="info")
