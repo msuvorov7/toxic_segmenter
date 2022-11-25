@@ -32,8 +32,14 @@ def tokenize(text: str) -> list:
     return text.split()
 
 
+@app.get('/about')
+async def about(request: Request):
+    logging.info('about')
+    return templates.TemplateResponse("about.html", context={"request": request})
+
+
 @app.post('/predict', response_class=HTMLResponse)
-def predict(request: Request, msg: str = Form(...)):
+async def predict(request: Request, msg: str = Form(...)):
 
     logging.info(f'message: {msg}')
 
