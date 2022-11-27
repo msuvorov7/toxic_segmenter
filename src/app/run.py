@@ -61,7 +61,26 @@ async def predict(request: Request, msg: str = Form(...)):
             continue
         result_message += f'{token} '
 
-    return templates.TemplateResponse("index.html", context={"request": request, "result": result_message})
+    return templates.TemplateResponse("index.html",
+                                      context={
+                                          "request": request,
+                                          "predicted": result_message,
+                                          "request_sentence": msg,
+                                      }
+                                      )
+
+
+@app.post('/most_similar', response_class=HTMLResponse)
+async def most_similar(request: Request, word: str = Form(...)):
+    similar = fasttext_model.most_similar(word)[:5]
+    logging.info(similar)
+    return templates.TemplateResponse("index.html",
+                                      context={
+                                          "request": request,
+                                          "similar": similar,
+                                          "request_word": word,
+                                      }
+                                      )
 
 
 @app.get("/")
