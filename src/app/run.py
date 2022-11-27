@@ -32,8 +32,14 @@ def tokenize(text: str) -> list:
     return text.split()
 
 
-@app.post('/predict')
-def predict(msg=Form()):
+@app.get('/about')
+async def about(request: Request):
+    logging.info('about')
+    return templates.TemplateResponse("about.html", context={"request": request})
+
+
+@app.post('/predict', response_class=HTMLResponse)
+async def predict(request: Request, msg: str = Form(...)):
 
     logging.info(f'message: {msg}')
 
@@ -55,7 +61,26 @@ def predict(msg=Form()):
             continue
         result_message += f'{token} '
 
-    return HTMLResponse(content=f"<p>{result_message}</p>")
+    return templates.TemplateResponse("index.html",
+                                      context={
+                                          "request": request,
+                                          "predicted": result_message,
+                                          "request_sentence": msg,
+                                      }
+                                      )
+
+
+@app.post('/most_similar', response_class=HTMLResponse)
+async def most_similar(request: Request, word: str = Form(...)):
+    similar = fasttext_model.most_similar(word)[:5]
+    logging.info(similar)
+    return templates.TemplateResponse("index.html",
+                                      context={
+                                          "request": request,
+                                          "similar": similar,
+                                          "request_word": word,
+                                      }
+                                      )
 
 
 @app.get("/")
