@@ -47,7 +47,7 @@ def load_fasttext_model(file_name: str) -> FastText:
     :param file_name: имя файла с обученной моделью
     :return:
     """
-    vocabulary = FastText.load(file_name)
+    vocabulary = FastText.load(file_name).wv
     return vocabulary
 
 
@@ -78,14 +78,23 @@ def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, fit_fastte
     cleaned_tokens = tokens.apply(lambda item: [preprocessor.forward(token) for token in item])
 
     if fit_fasttext:
-        embedding_model = FastText(vector_size=300, min_n=3, max_n=5, window=4)
+        logging.info('fitting FastText...')
+        embedding_model = FastText(cleaned_tokens, vector_size=300, min_n=3, max_n=5, window=4).wv
+        embedding_model = compress_fasttext.prune_ft_freq(embedding_model, pq=False)
         save_fasttext_model(embedding_model=embedding_model, directory_path=embedding_model_path)
     else:
+        logging.info('loading FastText...')
         # source: http://docs.deeppavlov.ai/en/master/features/pretrained_vectors.html
-        # usage: FastText.load_fasttext_format('path/to/file/ft_native_300_ru_twitter_nltk_word_tokenize.bin')
-        # embedding_model = load_fasttext_model(embedding_model_path + 'fasttext_pretrained.model')
-        embedding_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(embedding_model_path + 'tiny_fasttext.model')
+        # usages:
+        #   model = FastText.load_fasttext_format('path/to/file/ft_native_300_ru_twitter_nltk_word_tokenize.bin')
+        #   model.save(embedding_model_path + 'fasttext_pretrained.model')
+        #   large_fasttext = load_fasttext_model(embedding_model_path + 'fasttext_pretrained.model')
+        #   tiny_fasttext = compress_fasttext.prune_ft_freq(large_fasttext, pq=False)
+        #   tiny_fasttext.save(embedding_model_path + 'tiny_fasttext.model')
+        embedding_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
+            embedding_model_path + 'tiny_fasttext.model')  # or 'fasttext.model'
 
+    logging.info('get FastText embeddings...')
     features = cleaned_tokens.apply(
         lambda sentence: np.array([embedding_model[item] for item in sentence])
     )
@@ -97,6 +106,7 @@ if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--config', default='params.yaml', dest='config')
     args_parser.add_argument('--mode', default='train', dest='mode')
+    args_parser.add_argument('--fit_fasttext', type=bool, default=False, dest='fit_fasttext')
     args = args_parser.parse_args()
 
     assert args.mode in ('train', 'test')
@@ -110,7 +120,7 @@ if __name__ == '__main__':
     df = download_dataframe(data_raw_dir, args.mode)
     features, tags = build_feature(dataframe=df,
                                    embedding_model_path=embedding_model_dir,
-                                   fit_fasttext=False,
+                                   fit_fasttext=args.fit_fasttext,
                                    )
 
     dataset = ToxicDataset(features, tags)

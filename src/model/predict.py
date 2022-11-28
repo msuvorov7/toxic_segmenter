@@ -5,9 +5,7 @@ import sys
 
 import compress_fasttext
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import onnxruntime
 
 import yaml
 
@@ -29,29 +27,34 @@ logging.basicConfig(
 )
 
 
-def load_model(directory_path: str) -> nn.Module:
+def softmax(z):
+    exp = np.exp(z - np.max(z))
+    for i in range(len(z)):
+        exp[i] /= np.sum(exp[i])
+    return exp
+
+
+def load_model(directory_path: str):
     """
     функция для загрузки модели
     :param directory_path: имя директории
     :return:
     """
-    model_path = directory_path + 'model.torch'
-    model = torch.load(model_path)
-    return model
+    return onnxruntime.InferenceSession(directory_path + 'segmenter.onnx')
 
 
-def predict(message: str) -> (list, list):
+def predict(message: str, fasttext_model, ort_session) -> (list, list):
     tokens = tokenize(message)
     preprocessor = Preprocessor()
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
     encoded = [fasttext_model[item] for item in cleaned_tokens]
 
-    prediction = model(torch.tensor(np.array(encoded)))
-    prediction = prediction.view(-1, prediction.shape[2])
+    ort_inputs = {ort_session.get_inputs()[0].name: encoded}
+    ort_outs = ort_session.run(None, ort_inputs)
+    labels = np.argmax(ort_outs[0][0], axis=1)
+    predictions = softmax(ort_outs[0][0])
 
-    preds = F.softmax(prediction, dim=1)[:, 1].cpu().detach().numpy()
-
-    return tokens, preds
+    return tokens, predictions[:, 1]
 
 
 if __name__ == '__main__':
@@ -64,27 +67,30 @@ if __name__ == '__main__':
     with open(fileDir + args.config) as conf_file:
         config = yaml.safe_load(conf_file)
 
-    model = load_model(fileDir + config['models'])
+    ort_session = load_model(fileDir + config['models'])
     logging.info(f'model loaded')
 
     # fasttext_model = load_fasttext_model(fileDir + config['models'] + args.fasttext_name)
     fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(fileDir + config['models'] + args.fasttext_name)
     logging.info(f'fasttext model loaded')
 
-    text = """
-    пидрила злоебучий убери свою смазливую морду.
-    собака конченная вот ты кто.
-    знаю я породу этих хуеплетов.
-    мазь и словарь проверь.
-    копать не строить.
-    мне кажется этот пидарок слишком драмматизирует.
-    еб@нько прикрой, пидрк.
-    пиздацирк какой-то.
-    """
-    tokens, preds = predict(text)
+    texts = [
+        'пидрила злоебучий убери свою смазливую морду.',
+        'собака конченная вот ты кто.',
+        'знаю я породу этих хуеплетов.',
+        'копать не строить.',
+        'мне кажется этот пидарок слишком драмматизирует.',
+        'еб@нько прикрой, пидрк.',
+        'пиздацирк какой-то.',
+        'мазь и словарь проверь.',
+    ]
 
-    for token, pred in zip(tokens, preds):
-        if pred > 0.5:
-            print(f'🤬 {token}: {pred:.2f}')
-        else:
-            print(f'{token}: {pred:.2f}')
+    for text in texts:
+        tokens, preds = predict(text, fasttext_model, ort_session)
+        result_msg = ''
+        for token, pred in zip(tokens, preds):
+            if pred > 0.5:
+                result_msg += f'🤬 {token} {pred:.2f} '
+            else:
+                result_msg += f'{token} {pred:.2f} '
+        print(result_msg)
