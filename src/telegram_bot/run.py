@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import os
@@ -7,10 +8,46 @@ import onnxruntime
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
+import ydb
+import uuid
 
 from preprocess_rules import Preprocessor
 
 log = logging.getLogger(__name__)
+
+# Create driver in global space.
+driver = ydb.Driver(
+    endpoint=os.environ.get('YDB_ENDPOINT'),
+    database=os.environ.get('YDB_DATABASE')
+)
+# Wait for the driver to become active for requests.
+driver.wait(fail_fast=True, timeout=5)
+# Create the session pool instance to manage YDB sessions.
+pool = ydb.SessionPool(driver)
+
+
+def insert_query(session, id_key, message):
+    ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    sql = f"""
+    INSERT INTO `raw-tg-request`
+    (
+        id,
+        message,
+        ts
+    )
+    VALUES
+    (
+        "{id_key}",
+        "{message}",
+        DateTime("{ts}")
+    );
+    """
+    # Create the transaction and execute query.
+    return session.transaction().execute(
+      sql,
+      commit_tx=True,
+      settings=ydb.BaseRequestSettings().with_timeout(3).with_operation_timeout(2)
+    )
 
 
 def tokenize(text: str) -> list:
@@ -80,6 +117,13 @@ async def handler(event, context):
     """Yandex.Cloud functions handler."""
 
     if event['httpMethod'] == 'POST':
+        id_key = str(uuid.uuid4())
+        message = str(json.loads(event['body']))
+
+        # YDB query
+        session = driver.table_client.session().create()
+        insert_query(session, id_key, message)
+
         # Bot and dispatcher initialization
         bot = Bot(os.environ.get('TELEGRAM_BOT_TOKEN'))
         dp = Dispatcher(bot)

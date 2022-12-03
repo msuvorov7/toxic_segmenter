@@ -10,5 +10,5 @@ yc serverless function version create \
   --execution-timeout 3s \
   --package-bucket-name <bucket-name> \
   --package-object-name serverless_functions.zip \
-  --add-service-account alias=<alias>,name=<name> \
-  --environment TELEGRAM_BOT_TOKEN=<tg_token>
+  --service-account-id <service_acc_id> \
+  --environment TELEGRAM_BOT_TOKEN=<tg_token>,YDB_ENDPOINT=<endpoint>,YDB_DATABASE=<database_url>
