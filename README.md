@@ -139,3 +139,51 @@ flag in [build_feature.py](./src/feature/build_feature.py)
        ```
 
 **Warning**: after the local launch of the telegram bot, you must re-install the webhook on Cloud Functions
+
+
+### Yandex Serverless DataBase
+- [create](https://cloud.yandex.ru/docs/cli/operations/authentication/service-account) token for 
+service account `yc iam key create --service-account-name <service_acc_name> --output key.json --folder-id <ID_каталога>`
+- install ydb `curl -sSL https://storage.yandexcloud.net/yandexcloud-ydb/install.sh | bash`
+- [begin](https://ydb.tech/ru/docs/reference/ydb-sdk/example/python/?ysclid=lb87iuocqf671961291) of work
+- you can connect to ydb with python code:
+```python
+import ydb
+import ydb.iam
+endpoint = 'grpcs://ydb.serverless.yandexcloud.net...'
+database = '/ru-central1/...'
+driver = ydb.Driver(
+        endpoint=endpoint,
+        database=database,
+        # construct the service account credentials instance
+        #   service account key should be in the local file,
+        credentials=ydb.iam.ServiceAccountCredentials.from_file(
+            '~/key.json',
+        )
+)
+def execute_query(session):
+    # Create the transaction and execute the query.
+    # All transactions must be committed using the `commit_tx` flag in the last
+    # statement. The either way to commit transaction is using `commit` method of `TxContext` object, which is
+    # not recommended.
+    return session.transaction().execute(
+        "select * from `your-table-name`;",
+        commit_tx=True,
+        settings=ydb.BaseRequestSettings().with_timeout(3).with_operation_timeout(2),
+    )
+with driver:
+    # wait until driver become initialized
+    driver.wait(fail_fast=True, timeout=5)
+
+    # Initialize the session pool instance and enter the context manager.
+    # The context manager automatically stops the session pool.
+    # On the session pool termination all YDB sessions are closed.
+    with ydb.SessionPool(driver) as pool:
+
+        # Execute the query with the `retry_operation_helper` the.
+        # The `retry_operation_sync` helper used to help developers
+        # to retry YDB specific errors like locks invalidation.
+        # The first argument of the `retry_operation_sync` is a function to retry.
+        # This function must have session as the first argument.
+        result = pool.retry_operation_sync(execute_query)  # use result.rows to see rows
+```
