@@ -57,14 +57,14 @@ async def predict(request: Request, msg: str = Form(...)):
 
     ort_inputs = {ort_session.get_inputs()[0].name: encoded}
     ort_outs = ort_session.run(None, ort_inputs)
-    labels = np.argmax(ort_outs[0][0], axis=1)
     preds = softmax(ort_outs[0][0])[:, 1]
 
     toxic_smile = '🤬'
     result_message = ''
+    threshold = 0.2
 
     for token, pred in zip(tokens, preds):
-        if pred > 0.5:
+        if pred > threshold:
             result_message += f'{toxic_smile} '
             continue
         result_message += f'{token} '
@@ -74,7 +74,7 @@ async def predict(request: Request, msg: str = Form(...)):
         'cleaned': cleaned_tokens,
         'nearest': [fasttext_model.most_similar(item)[0][0] for item in cleaned_tokens],
         'preds': preds.round(3),
-        'labels': labels,
+        'labels': (preds > threshold).astype(int),
     }
 
     return templates.TemplateResponse("index.html",
