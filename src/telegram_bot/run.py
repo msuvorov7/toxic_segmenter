@@ -50,6 +50,13 @@ def insert_query(session, id_key, message):
     )
 
 
+def softmax(z):
+    exp = np.exp(z - np.max(z))
+    for i in range(len(z)):
+        exp[i] /= np.sum(exp[i])
+    return exp
+
+
 def tokenize(text: str) -> list:
     return text.split()
 
@@ -68,6 +75,8 @@ async def predict(message: types.message):
     log.info(f'fasttext model loaded')
 
     msg = message.text
+    username = message.from_user.username
+
     tokens = tokenize(msg)
     preprocessor = Preprocessor()
     cleaned_tokens = [preprocessor.forward(token) for token in tokens]
@@ -75,13 +84,13 @@ async def predict(message: types.message):
 
     ort_inputs = {ort_session.get_inputs()[0].name: encoded}
     ort_outs = ort_session.run(None, ort_inputs)
-    labels = np.argmax(ort_outs[0][0], axis=1)
+    predictions = softmax(ort_outs[0][0])[:, 1]
 
     toxic_smile = '🤬'
-    result_message = ''
+    result_message = f'@{username}:\n'
 
-    for token, pred in zip(tokens, labels):
-        if pred > 0.5:
+    for token, pred in zip(tokens, predictions):
+        if pred > 0.2:
             result_message += f'{toxic_smile} '
             continue
         result_message += f'{token} '
