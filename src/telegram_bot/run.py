@@ -88,14 +88,14 @@ async def predict(message: types.message):
 
     toxic_smile = '🤬'
     result_message = f'@{username}:\n'
+    threshold = 0.2
 
-    for token, pred in zip(tokens, predictions):
-        if pred > 0.2:
-            result_message += f'{toxic_smile} '
-            continue
-        result_message += f'{token} '
+    if max(predictions) > threshold:
+        for token, pred in zip(tokens, predictions):
+            result_message += f'<tg-spoiler>{token}</tg-spoiler> ' if pred > threshold else f'{token} '
 
-    await message.answer(text=result_message)
+        await message.delete()
+        await message.answer(text=result_message, parse_mode='HTML')
 
 
 # Functions for Yandex.Cloud

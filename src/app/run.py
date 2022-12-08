@@ -64,10 +64,7 @@ async def predict(request: Request, msg: str = Form(...)):
     threshold = 0.2
 
     for token, pred in zip(tokens, preds):
-        if pred > threshold:
-            result_message += f'{toxic_smile} '
-            continue
-        result_message += f'{token} '
+        result_message += f'{toxic_smile} ' if pred > threshold else f'{token} '
 
     debug_dict = {
         'tokens': tokens,
