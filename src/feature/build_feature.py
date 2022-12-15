@@ -41,16 +41,6 @@ def save_fasttext_model(directory_path: str, embedding_model: FastText) -> None:
     logging.info(f'fasttext_model saved in {directory_path}')
 
 
-def load_fasttext_model(file_name: str) -> FastText:
-    """
-    Функция для загрузки обученной модели
-    :param file_name: имя файла с обученной моделью
-    :return:
-    """
-    vocabulary = FastText.load(file_name).wv
-    return vocabulary
-
-
 def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
     """
     Загрузка датасета в память
@@ -85,14 +75,13 @@ def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, fit_fastte
     else:
         logging.info('loading FastText...')
         # source: http://docs.deeppavlov.ai/en/master/features/pretrained_vectors.html
-        # usages:
+        # how to compress source:
         #   model = FastText.load_fasttext_format('path/to/file/ft_native_300_ru_twitter_nltk_word_tokenize.bin')
         #   model.save(embedding_model_path + 'fasttext_pretrained.model')
-        #   large_fasttext = load_fasttext_model(embedding_model_path + 'fasttext_pretrained.model')
+        #   large_fasttext = FastText.load(embedding_model_path + 'fasttext_pretrained.model').wv
         #   tiny_fasttext = compress_fasttext.prune_ft_freq(large_fasttext, pq=False)
         #   tiny_fasttext.save(embedding_model_path + 'tiny_fasttext.model')
-        embedding_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
-            embedding_model_path + 'tiny_fasttext.model')  # or 'fasttext.model'
+        embedding_model = compress_fasttext.CompressedFastTextKeyedVectors.load(embedding_model_path + 'tiny_fasttext.model')  # or 'fasttext.model'
 
     logging.info('get FastText embeddings...')
     features = cleaned_tokens.apply(
