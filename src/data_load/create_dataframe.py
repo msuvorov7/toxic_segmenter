@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-import re
 import sys
 
 import numpy as np
@@ -16,6 +15,7 @@ sys.path.insert(0, os.path.dirname(
 
 from src.utils.augmentator import Augmentator
 from src.utils.preprocess_rules import Preprocessor
+from src.utils.tokenizer import Tokenizer
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -26,16 +26,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-
-
-def tokenize(text: str) -> list:
-    return text.split()
-
-
-def clear_token(token: str) -> str:
-    token = token.lower()
-    pattern = r'[.,!?"()-_—:;«»%⁉~]'
-    return re.sub(pattern, '', string=token)
 
 
 def augment(df: pd.DataFrame, probability: float) -> pd.DataFrame():
@@ -81,13 +71,14 @@ def concat_kaggle_df(directory_path: str) -> None:
 def create_dataframe(directory_path: str, test_size: float):
     vocab = pd.read_csv(directory_path + 'toxic_vocabulary.csv')['word'].values
     preprocessor = Preprocessor()
+    tokenizer = Tokenizer()
 
     df = pd.read_csv(directory_path + 'twitter_corpus.csv', engine='python').sample(1_000_000, random_state=42)
     logging.info(f'dataset loaded: {df.shape}')
 
     df.to_csv(directory_path + 'twitter_sample.csv', index=False)
 
-    tokens = df['text'].apply(str).apply(lambda item: tokenize(item))
+    tokens = df['text'].apply(str).apply(lambda item: tokenizer.tokenize(item))
     tags = tokens.apply(lambda item: [1 if preprocessor.forward(token) in vocab else 0 for token in item])
     logging.info('dataset tokenized')
 

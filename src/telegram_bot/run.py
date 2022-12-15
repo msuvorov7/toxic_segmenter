@@ -2,16 +2,15 @@ import datetime
 import json
 import logging
 import os
-import numpy as np
 import compress_fasttext
+import numpy as np
 import onnxruntime
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
-from aiogram.utils import executor
 import ydb
 import uuid
 
-from preprocess_rules import Preprocessor
+from src.utils.transformer import FeatureTransformer
 
 log = logging.getLogger(__name__)
 
@@ -26,9 +25,13 @@ driver.wait(fail_fast=True, timeout=5)
 pool = ydb.SessionPool(driver)
 
 
-def insert_query(session, id_key, message):
-    ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
-    sql = f"""
+def insert_request_query(session, id_key: str, message: str, ts: str):
+    """Query for insert raw message to YDB."""
+
+    sql = """
+    DECLARE $ID AS String;
+    DECLARE $MSG AS String;
+    DECLARE $TS AS String;
     INSERT INTO `raw-tg-request`
     (
         id,
@@ -37,62 +40,69 @@ def insert_query(session, id_key, message):
     )
     VALUES
     (
-        "{id_key}",
-        "{message}",
-        DateTime("{ts}")
+        $ID,
+        $MSG,
+        CAST($TS as DateTime)
     );
     """
+    prepared_query = session.prepare(sql)
+
     # Create the transaction and execute query.
     return session.transaction().execute(
-      sql,
-      commit_tx=True,
-      settings=ydb.BaseRequestSettings().with_timeout(3).with_operation_timeout(2)
+        prepared_query,
+        {
+            '$ID': id_key.encode(),
+            '$MSG': message.encode(),
+            '$TS': ts.encode(),
+        },
+        commit_tx=True,
+        settings=ydb.BaseRequestSettings().with_timeout(3).with_operation_timeout(2)
     )
 
 
-def softmax(z):
-    exp = np.exp(z - np.max(z))
-    for i in range(len(z)):
-        exp[i] /= np.sum(exp[i])
-    return exp
+def insert_predicted_query(session, id_key: str, predicted: np.ndarray, ts: str):
+    """Query to insert model prediction."""
 
-
-def tokenize(text: str) -> list:
-    return text.split()
+    pass
 
 
 async def welcome_start(message):
+    """Aiogram helper handler."""
+
     await message.answer('Hello')
 
 
-async def predict(message: types.message):
-    ort_session = onnxruntime.InferenceSession('segmenter.onnx')
-    log.info(f'segmenter model loaded')
+async def text_handler(message: types.message):
+    """Aiogram handler only for text messages."""
 
-    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
-        'tiny_fasttext.model'
-    )
-    log.info(f'fasttext model loaded')
+    session = driver.table_client.session().create()
 
-    msg = message.text
     username = message.from_user.username
+    id_key = str(uuid.uuid4())
+    msg = message.text
 
-    tokens = tokenize(msg)
-    preprocessor = Preprocessor()
-    cleaned_tokens = [preprocessor.forward(token) for token in tokens]
-    encoded = [fasttext_model[item] for item in cleaned_tokens]
+    # YDB insert request query
+    request_ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    insert_request_query(session, id_key, msg, request_ts)
 
-    ort_inputs = {ort_session.get_inputs()[0].name: encoded}
-    ort_outs = ort_session.run(None, ort_inputs)
-    predictions = softmax(ort_outs[0][0])[:, 1]
+    # Predict Model
+    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load('models/tiny_fasttext.model')
+    model = onnxruntime.InferenceSession('models/segmenter.onnx')
+    transformer = FeatureTransformer(fasttext_model, model)
+    tokens = transformer.tokenizer.tokenize(msg)
+    predictions = transformer.predict(msg)
+
+    # YDB insert predicted query
+    response_ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    insert_predicted_query(session, id_key, predictions, response_ts)
 
     toxic_smile = '🤬'
     result_message = f'@{username}:\n'
     threshold = 0.2
 
     if max(predictions) > threshold:
-        for token, pred in zip(tokens, predictions):
-            result_message += f'<tg-spoiler>{token}</tg-spoiler> ' if pred > threshold else f'{token} '
+        spoiler_tokens = [tok if pred < threshold else f'<tg-spoiler>{tok}</tg-spoiler>' for tok, pred in zip(tokens, predictions)]
+        result_message += transformer.tokenizer.detokenize(spoiler_tokens)
 
         await message.delete()
         await message.answer(text=result_message, parse_mode='HTML')
@@ -103,7 +113,7 @@ async def register_handlers(dp: Dispatcher):
     """Registration all handlers before processing update."""
 
     dp.register_message_handler(welcome_start, commands=['start'])
-    dp.register_message_handler(predict, content_types=['text'])
+    dp.register_message_handler(text_handler, content_types=['text'])
 
     log.debug('Handlers are registered.')
 
@@ -126,12 +136,6 @@ async def handler(event, context):
     """Yandex.Cloud functions handler."""
 
     if event['httpMethod'] == 'POST':
-        id_key = str(uuid.uuid4())
-        message = str(json.loads(event['body']))
-
-        # YDB query
-        session = driver.table_client.session().create()
-        insert_query(session, id_key, message)
 
         # Bot and dispatcher initialization
         bot = Bot(os.environ.get('TELEGRAM_BOT_TOKEN'))

@@ -1,16 +1,17 @@
+import argparse
 import logging
 import os
 import sys
 
 import compress_fasttext
-import numpy as np
 import onnxruntime
 import uvicorn
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from src.utils.preprocess_rules import Preprocessor
+from src.utils.transformer import FeatureTransformer
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,21 +23,6 @@ logging.basicConfig(
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-
-fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load('models/tiny_fasttext.model')
-
-ort_session = onnxruntime.InferenceSession('models/segmenter.onnx')
-
-
-def tokenize(text: str) -> list:
-    return text.split()
-
-
-def softmax(z):
-    exp = np.exp(z - np.max(z))
-    for i in range(len(z)):
-        exp[i] /= np.sum(exp[i])
-    return exp
 
 
 @app.get('/about')
@@ -50,34 +36,29 @@ async def predict(request: Request, msg: str = Form(...)):
 
     logging.info(f'message: {msg}')
 
-    tokens = tokenize(msg)
-    preprocessor = Preprocessor()
-    cleaned_tokens = [preprocessor.forward(token) for token in tokens]
-    encoded = [fasttext_model[item] for item in cleaned_tokens]
-
-    ort_inputs = {ort_session.get_inputs()[0].name: encoded}
-    ort_outs = ort_session.run(None, ort_inputs)
-    preds = softmax(ort_outs[0][0])[:, 1]
-
     toxic_smile = '🤬'
-    result_message = ''
     threshold = 0.2
 
-    for token, pred in zip(tokens, preds):
-        result_message += f'{toxic_smile} ' if pred > threshold else f'{token} '
+    transformer = FeatureTransformer(fasttext_model, segment_model)
+    tokens = transformer.tokenizer.tokenize(msg)
+    processed_tokens = [transformer.preprocessor.forward(token) for token in tokens]
+    probabilities = transformer.predict(msg)
+
+    censored_tokens = [tok if prob < threshold else toxic_smile for (tok, prob) in zip(tokens, probabilities)]
+    predicted = transformer.tokenizer.detokenize(censored_tokens)
 
     debug_dict = {
         'tokens': tokens,
-        'cleaned': cleaned_tokens,
-        'nearest': [fasttext_model.most_similar(item)[0][0] for item in cleaned_tokens],
-        'preds': preds.round(3),
-        'labels': (preds > threshold).astype(int),
+        'processed': processed_tokens,
+        'nearest': [fasttext_model.most_similar(item)[0][0] for item in processed_tokens],
+        'preds': probabilities.round(3),
+        'labels': (probabilities > threshold).astype(int),
     }
 
     return templates.TemplateResponse("index.html",
                                       context={
                                           "request": request,
-                                          "predicted": result_message,
+                                          "predicted": predicted,
                                           "request_sentence": msg,
                                           "debug_dict": debug_dict,
                                       }
@@ -103,4 +84,12 @@ async def main(request: Request):
 
 
 if __name__ == '__main__':
+    args_parser = argparse.ArgumentParser()
+    args_parser.add_argument('--fasttext_model', dest='fasttext_model', required=True)
+    args_parser.add_argument('--model', dest='model', required=True)
+    args = args_parser.parse_args()
+
+    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(args.fasttext_model)
+    segment_model = onnxruntime.InferenceSession(args.model)
+
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "80")), log_level="info")

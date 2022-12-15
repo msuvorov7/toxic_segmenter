@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
-from src.model.cnn_model import ToxicSegmenter
+from src.model.model import ToxicSegmenter
 
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
@@ -234,9 +234,33 @@ def fit(model: nn.Module,
     return train_rocs, val_rocs
 
 
-def save_model(model: nn.Module, directory_path: str) -> None:
+def save_onnx_model(model: nn.Module, directory_path: str) -> None:
     """
-    функция для сохранения состояния модели
+    функция для сохранения состояния onnx модели
+    :param model: модель
+    :param directory_path: имя директории
+    :return:
+    """
+    model_path = directory_path + 'segmenter.onnx'
+    dummy_input = torch.randn(10, 100)
+    torch.onnx.export(
+        model,
+        dummy_input,
+        model_path,
+        input_names=['input'],
+        dynamic_axes={"input": {0: "width"}})
+
+    mlflow.onnx.log_model(artifact_path='models',
+                          onnx_model=onnx.load(model_path),
+                          registered_model_name='segmenter.onnx',
+                          )
+
+    logging.info(f'onnx model saved: {model_path}')
+
+
+def save_torch_model(model: nn.Module, directory_path: str) -> None:
+    """
+    функция для сохранения состояния torch модели
     :param model: модель
     :param directory_path: имя директории
     :return:
@@ -246,20 +270,7 @@ def save_model(model: nn.Module, directory_path: str) -> None:
     model_path = directory_path + 'model.torch'
     torch.save(model, model_path)
 
-    dummy_input = torch.randn(10, 100)
-    torch.onnx.export(
-        model,
-        dummy_input,
-        directory_path + 'segmenter.onnx',
-        input_names=['input'],
-        dynamic_axes={"input": {0: "width"}})
-
-    mlflow.onnx.log_model(artifact_path='models',
-                          onnx_model=onnx.load(directory_path + 'segmenter.onnx'),
-                          registered_model_name='segmenter.onnx',
-                          )
-
-    logging.info(f'model saved: {model_path}')
+    logging.info(f'torch model saved: {model_path}')
 
 
 if __name__ == '__main__':
@@ -303,10 +314,11 @@ if __name__ == '__main__':
 
     mlflow.set_experiment('base model')
 
-    with mlflow.start_run(description='twitter corpus | augment 0.1 | tiny fasttext twitter\n conv2 + pool + relu | weight [0.12, 0.88]) | epoch 3'):
+    with mlflow.start_run(description='twitter corpus | augment 0.1 | tiny fasttext twitter\n gru + relu | weight [0.12, 0.88] | epoch 2'):
         logging.info(mlflow.get_artifact_uri())
         mlflow.log_param('train_data_len', len([item for sublist in train_dataset.tags for item in sublist]))
         mlflow.log_param('train_data_pos', sum([item for sublist in train_dataset.tags for item in sublist]))
         _, _ = fit(model, train_loader, valid_loader, args.epoch)
         test(model, test_loader, 'cpu')
-        save_model(model, fileDir + config['models'])
+        save_torch_model(model, fileDir + config['models'])
+        save_onnx_model(model, fileDir + config['models'])

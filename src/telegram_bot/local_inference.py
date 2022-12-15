@@ -3,8 +3,7 @@ import os
 import sys
 
 import compress_fasttext
-import yaml
-from dotenv import load_dotenv
+import onnxruntime
 
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
@@ -14,8 +13,7 @@ sys.path.insert(0, os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ))
 
-from src.model.predict import load_model
-from src.model.predict import predict
+from src.utils.transformer import FeatureTransformer
 
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
@@ -27,37 +25,22 @@ logging.basicConfig(
     ]
 )
 
-load_dotenv()
-
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
 
-with open(fileDir + 'params.yaml') as conf_file:
-    config = yaml.safe_load(conf_file)
-
-
-model = load_model(fileDir + config['models'])
-logging.info(f'model loaded')
-
-fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(fileDir + config['models'] + 'tiny_fasttext.model')
-logging.info(f'fasttext model loaded')
-
-
 def get_result_message(text: str) -> str:
-    tokens, preds = predict(text, fasttext_model, model)
+    transformer = FeatureTransformer(fasttext_model, model)
+    tokens = transformer.tokenizer.tokenize(text)
+    probabilities = transformer.predict(text)
+
+    threshold = 0.2
     toxic_smile = '🤬'
-    result_message = ''
+    censored_tokens = [tok if prob < threshold else toxic_smile for (tok, prob) in zip(tokens, probabilities)]
 
-    for token, pred in zip(tokens, preds):
-        if pred > 0.5:
-            result_message += f'{toxic_smile} '
-            continue
-        result_message += f'{token} '
-
-    return result_message
+    return transformer.tokenizer.detokenize(censored_tokens)
 
 
 @dp.message_handler(commands=['start'])
@@ -81,4 +64,10 @@ async def parse_text(message: types.message):
 
 
 if __name__ == '__main__':
+    model = onnxruntime.InferenceSession('../models/segmenter.onnx')
+    logging.info(f'model loaded')
+
+    fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load('../models/tiny_fasttext.model')
+    logging.info(f'fasttext model loaded')
+
     executor.start_polling(dp, skip_updates=True)
