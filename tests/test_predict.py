@@ -8,7 +8,7 @@ from src.utils.transformer import FeatureTransformer
 
 class TestPredict(unittest.TestCase):
     fasttext_model = compress_fasttext.models.CompressedFastTextKeyedVectors.load('../models/tiny_fasttext.model')
-    model = onnxruntime.InferenceSession('/users/ruasvmv/Downloads/model-3.onnx')
+    model = onnxruntime.InferenceSession('../models/segmenter.onnx')
     transformer = FeatureTransformer(fasttext_model, model)
 
     def test_base_predict(self):

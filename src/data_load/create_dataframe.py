@@ -29,6 +29,12 @@ logging.basicConfig(
 
 
 def augment(df: pd.DataFrame, probability: float) -> pd.DataFrame():
+    """
+    Применение аугментаций к датафрейму
+    :param df: датафрейм для аугментаций
+    :param probability: вероятность применения аугментации
+    :return: аугментированный датафрейм
+    """
     augmentator = Augmentator(probability=probability)
 
     df['raw_tokens'] = df['raw_tokens'].apply(lambda item: [augmentator.randomly_replace_to_latin(token) for token in item])
@@ -39,40 +45,19 @@ def augment(df: pd.DataFrame, probability: float) -> pd.DataFrame():
     return df
 
 
-def concat_kaggle_df(directory_path: str) -> None:
-    # https://www.kaggle.com/datasets/alexandersemiletov/toxic-russian-comments
-    with open(directory_path + "dataset.txt", "r") as file:
-        dataset = file.read().split("\n")
-
-    labels = list(map(lambda x: list(map(lambda y: y[9:], x.split(" ")[0].split(","))), dataset))[: -1]
-    text = list(map(lambda x: " ".join(x.split(" ")[1:]), dataset))[: -1]
-
-    df = pd.DataFrame(np.array([labels, text], dtype='object').T, columns=["label", "text"])
-
-    # https://www.kaggle.com/datasets/blackmoon/russian-language-toxic-comments?resource=download
-    labeled = pd.read_csv(directory_path + 'labeled.csv')
-    labeled.columns = ['text', 'label']
-    labeled['label'] = labeled['label'].apply(lambda item: '[INSULT]' if item == 1 else '[NORMAL]')
-
-    # http://study.mokoron.com
-    twits_cols = ['id', 'tdate', 'name', 'text', 'type', 'rep', 'fav', 'tstcount', 'fol', 'frien', 'listcnt', 'smth']
-    positive_twits = pd.read_csv(directory_path + 'positive.csv', sep=';', header=None)
-    negative_twits = pd.read_csv(directory_path + 'negative.csv', sep=';', header=None)
-    twits = pd.concat([positive_twits, negative_twits], axis=0, ignore_index=True)
-    twits.columns = twits_cols
-    twits['label'] = twits['type'].apply(lambda item: '[INSULT]' if item == -1 else '[NORMAL]')
-    twits = twits[['text', 'label']]
-
-    df = pd.concat([df, labeled, twits], axis=0, ignore_index=True)
-    df.to_csv(directory_path + 'dataset.csv', index=False)
-    logging.info('dataset from kaggle created')
-
-
 def create_dataframe(directory_path: str, test_size: float):
+    """
+    Сборка датафрейма. Неразмеченный текст сообщений зранится в файле twitter_corpus.csv.
+    Словарь токсичных слов хранится в toxic_vocabulary.csv
+    :param directory_path: путь до данных
+    :param test_size: размер для тестового датасета
+    :return:
+    """
     vocab = pd.read_csv(directory_path + 'toxic_vocabulary.csv')['word'].values
     preprocessor = Preprocessor()
     tokenizer = Tokenizer()
 
+    # ограничение на 1 млн записей для скорости обучения
     df = pd.read_csv(directory_path + 'twitter_corpus.csv', engine='python').sample(1_000_000, random_state=42)
     logging.info(f'dataset loaded: {df.shape}')
 

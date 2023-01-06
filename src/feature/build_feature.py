@@ -31,7 +31,7 @@ logging.basicConfig(
 
 def save_fasttext_model(directory_path: str, embedding_model: FastText) -> None:
     """
-    Функция для обучения модели FastText на наборе токенов
+    Функция для сохранения модели FastText
     :param directory_path: путь для сохранения обученной модели
     :param embedding_model: обученная модель
     :return:
@@ -46,7 +46,7 @@ def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
     Загрузка датасета в память
     :param directory_path: путь до папки с сырыми данными
     :param mode: train/test
-    :return:
+    :return: датафрейм
     """
     dataframe = pd.read_parquet(directory_path + f'{mode}_df.parquet')
     is_toxic = dataframe['tags'].apply(lambda item: 1 if sum(item) > 0 else 0)
@@ -60,6 +60,14 @@ def download_dataframe(directory_path: str, mode: str) -> pd.DataFrame:
 
 
 def build_feature(dataframe: pd.DataFrame, embedding_model_path: str, fit_fasttext: bool) -> tuple:
+    """
+    Извлечение признаков для обучения модели.
+    Принимается токенизированный и обработанный текст, затем каждый токен получает вектор из модели FastText
+    :param dataframe: датафрейм для извлечения признаков
+    :param embedding_model_path: путь для сохранения модели FastText
+    :param fit_fasttext: флаг обучать ли с нуля FastText
+    :return: признаки и метки
+    """
     tokens = dataframe['raw_tokens']
     tags = dataframe['tags']
 

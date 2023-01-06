@@ -5,6 +5,9 @@ from src.utils.tokenizer import Tokenizer
 
 
 class FeatureTransformer:
+    """
+    Класс для применения модели к тексту
+    """
     def __init__(self, fasttext_model, onnx_model):
         self.tokenizer = Tokenizer()
         self.preprocessor = Preprocessor()
@@ -22,6 +25,11 @@ class FeatureTransformer:
         return exp
 
     def predict(self, message: str) -> np.ndarray:
+        """
+        Метод для получения вероятности положительного класса
+        :param message: сырое сообщение
+        :return: массив вероятностей для каждого токена
+        """
         tokens = self.tokenizer.tokenize(message)
         processed_tokens = [self.preprocessor.forward(token) for token in tokens]
         encoded = [self.fasttext_model[item] for item in processed_tokens]

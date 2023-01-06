@@ -13,6 +13,11 @@ sys.path.insert(0, os.path.dirname(
 
 
 def create_archive(models_path: str) -> None:
+    """
+    Создать архив для отправки в S3
+    :param models_path: путь до моделей
+    :return:
+    """
     with zipfile.ZipFile('serverless_functions.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
         zf.write(models_path + 'tiny_fasttext.model', 'models/tiny_fasttext.model')
         zf.write(models_path + 'segmenter.onnx', 'models/segmenter.onnx')

@@ -4,7 +4,13 @@ import numpy as np
 
 
 class Augmentator:
+    """
+    Класс для аугментирования текста
+    """
     def __init__(self, probability: float) -> None:
+        """
+        :param probability: вероятность применения аугментации (одна на всех)
+        """
         self.probability = probability
         self.noise_string = "qwertyuiop[]asdfghjkl;'\|`~zxcvbnm,./?<>§±1234567890-=!@#$%^&*(" \
                             ")_+№%:йцукенгшщзхъфывапролджэё][ячсмитьбю "
@@ -62,6 +68,11 @@ class Augmentator:
         return len(token) == 0
 
     def randomly_remove(self, token: str) -> str:
+        """
+        Случайное удаление символа из токена
+        :param token: токен
+        :return: аугментированный токен
+        """
         if self._is_empty_token(token):
             return token
 
@@ -73,6 +84,12 @@ class Augmentator:
         return token
 
     def randomly_noise(self, token: str) -> str:
+        """
+        Случайное добавление лишних символов в токен.
+        Число шумовых символов от 0 до 2-х
+        :param token: токен
+        :return: аугментированный токен
+        """
         if self._is_empty_token(token):
             return token
 
@@ -88,6 +105,11 @@ class Augmentator:
         return token
 
     def randomly_replace_to_latin(self, token: str) -> str:
+        """
+        Случайная замена на латинские буквы, словарь замен в конструкторе класса
+        :param token: токен
+        :return: аугментированный токен
+        """
         if self._is_empty_token(token):
             return token
 
@@ -102,6 +124,11 @@ class Augmentator:
         return token
 
     def randomly_replace_grammar(self, token: str) -> str:
+        """
+        Случайые опечатки в токене
+        :param token: токен
+        :return: аугментированный токен
+        """
         if self._is_empty_token(token):
             return token
 
