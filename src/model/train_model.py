@@ -203,7 +203,6 @@ def fit(model: nn.Module,
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    # criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.5, 30.7]), dtype=torch.float32), reduction='mean')
     criterion = nn.CrossEntropyLoss(weight=torch.tensor(np.array([0.12, 0.88]), dtype=torch.float32), reduction='mean')
 
     train_losses = []

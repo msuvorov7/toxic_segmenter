@@ -32,6 +32,11 @@ dp = Dispatcher(bot)
 
 
 def get_result_message(text: str) -> str:
+    """
+    Пайплайн по обработке сырого сообщения
+    :param text: сырой текст
+    :return: цензурированный текст
+    """
     transformer = FeatureTransformer(fasttext_model, model)
     tokens = transformer.tokenizer.tokenize(text)
     probabilities = transformer.predict(text)
@@ -50,6 +55,11 @@ async def welcome_start(message):
 
 @dp.message_handler(lambda message: message.caption is not None, content_types=['photo'])
 async def parse_photo(message: types.message):
+    """
+    Обработчик входящих сообщений с фотографиями
+    :param message: фото с подписью
+    :return: цензурированноя подпись и фото
+    """
     result_message = get_result_message(message.caption)
     print(message.caption)
     await message.answer_photo(photo=message.photo[-1].file_id, caption=result_message)
@@ -57,6 +67,11 @@ async def parse_photo(message: types.message):
 
 @dp.message_handler(content_types=['text'])
 async def parse_text(message: types.message):
+    """
+    Обработчик входящих текстовых сообщений
+    :param message: сырой текст сообщения
+    :return: цензурированная строка
+    """
     text = message.text
     print(text)
     result_message = get_result_message(text)

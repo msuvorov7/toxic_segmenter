@@ -23,8 +23,6 @@ class ToxicSegmenter(nn.Module):
                           bidirectional=is_bidirectional
                           )
 
-        self.dropout = nn.Dropout(p=dropout)
-
         self.fc = nn.Linear((int(is_bidirectional) + 1) * hidden_size, output_dim)
 
     def forward(self, text):
