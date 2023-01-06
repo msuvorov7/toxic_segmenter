@@ -1,17 +1,80 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Toxic Segmenter</title>
-</head>
-<body>
-    <h2>Форма ввода</h2>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h3>Get Model Predict</h3>
     <form action="predict" method="post">
-        <p>
-            Message:<br>
-            <input name="msg" />
-        </p>
-        <input type="submit" value="Send" />
+        <div class="form-group">
+            <input class="form-control form-control-lg" type="text" placeholder="Message" name="msg" required>
+        </div>
+        <br>
+        <button type="submit" class="btn btn-primary">Submit</button>
     </form>
-</body>
-</html>
+    <br>
+    {% if predicted %}
+        <p>you entered: "{{ request_sentence }}"</p>
+        <p class="mb-2">model output: {{predicted}}</p>
+        <p class="mb-1">debug info:</p>
+        <div class="container mb-3">
+        <table class="table table-hover">
+          <thead>
+              <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">word</th>
+                  <th scope="col">processed word</th>
+                  <th scope="col">nearest fasttext word</th>
+                  <th scope="col">prediction</th>
+            </tr>
+            </thead>
+            <tbody>
+                {% for i in range(debug_dict['tokens']|length) %}
+                <tr>
+                    <th scope="row">{{ loop.index }}</th>
+                    {% if debug_dict['labels'][i] == 0 %}
+                        <td class="table-success">{{ debug_dict['tokens'][i] }}</td>
+                    {% else %}
+                        <td class="table-danger">{{ debug_dict['tokens'][i] }}</td>
+                    {% endif %}
+                    <td>{{ debug_dict['processed'][i] }}</td>
+                    <td>{{ debug_dict['nearest'][i] }}</td>
+                    <td>{{ debug_dict['preds'][i] }}</td>
+                </tr>
+                {% endfor %}
+          </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <h3>Compressed FastText Similar Words</h3>
+    <form action="most_similar" method="post">
+        <div class="form-group">
+            <input class="form-control form-control-lg" type="text" placeholder="Word" name="word" required>
+        </div>
+        <br>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+    {% if similar %}
+    <p class="mt-5 mb-3"> most similar words for "{{ request_word }}":</p>
+    <div class="container">
+        <table class="table table-hover">
+          <thead>
+              <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">word</th>
+                  <th scope="col">distance</th>
+            </tr>
+            </thead>
+            <tbody>
+                {% for ent in similar %}
+                <tr>
+                    <th scope="row">{{ loop.index }}</th>
+                    <td>{{ ent[0] }}</td>
+                    <td>{{ ent[1] }}</td>
+                </tr>
+                {% endfor %}
+          </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

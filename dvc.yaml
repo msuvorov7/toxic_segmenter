@@ -21,6 +21,7 @@ stages:
     deps:
       - src/feature/build_feature.py
       - data/raw/test_df.parquet
+      - data/processed/train_dataset.pkl
     outs:
       - data/processed/test_dataset.pkl
 

@@ -2,6 +2,9 @@ import re
 
 
 class Preprocessor:
+    """
+    Класс для первичной обработки входящего токена
+    """
     def __init__(self):
         # self.noise_char_reg = re.compile(r'[.,!?"()-_—:;«»=±+#%&*№1234567890\\/\[\]|⁉~]')
         self.noise_char_reg = re.compile('[^a-zA-Zа-яА-ЯЁё]')
@@ -51,13 +54,28 @@ class Preprocessor:
         }
 
     def remove_noise(self, token: str) -> str:
+        """
+        Очистка от незначимых (шумовых) символов
+        :param token: токен
+        :return: обработанный токен
+        """
         return self.noise_char_reg.sub('', token)
 
     def remove_emoji(self, token: str) -> str:
+        """
+        Отдельное удаление emoji
+        :param token: токен
+        :return: обработанный токен
+        """
         return self.emoji_pattern.sub(r'', token)
 
     @staticmethod
     def remove_duplicated_chars(token: str) -> str:
+        """
+        Удаление дублирующих символов
+        :param token: токен
+        :return: обработанный токен
+        """
         res = '\r'
         for char in token:
             if char != res[-1]:
@@ -66,6 +84,11 @@ class Preprocessor:
 
     @staticmethod
     def replace_symbol_to_ru(token: str) -> str:
+        """
+        Перевод популярных кодировок на символы
+        :param token: токен
+        :return: обработанный токен
+        """
         token = token.replace('3.147', 'пи')
         token = token.replace('3,147', 'пи')
         token = token.replace('3.14', 'пи')
@@ -82,12 +105,22 @@ class Preprocessor:
         return token
 
     def translit(self, token: str) -> str:
+        """
+        Транслит на русский язык
+        :param token: токен
+        :return: обработанный токен
+        """
         for char in token:
             if char in self.translit_dict:
                 token = token.replace(char, self.translit_dict[char])
         return token
 
     def forward(self, token: str) -> str:
+        """
+        Пайплайн по обработке токена
+        :param token: токен
+        :return: обработанный токен
+        """
         lower_token = token.lower()
         lower_token = self.replace_symbol_to_ru(lower_token)
         # lower_token = self.remove_emoji(lower_token)

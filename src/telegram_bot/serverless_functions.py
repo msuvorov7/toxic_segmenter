@@ -13,10 +13,17 @@ sys.path.insert(0, os.path.dirname(
 
 
 def create_archive(models_path: str) -> None:
+    """
+    Создать архив для отправки в S3
+    :param models_path: путь до моделей
+    :return:
+    """
     with zipfile.ZipFile('serverless_functions.zip', mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.write(models_path + 'tiny_fasttext.model', 'tiny_fasttext.model')
-        zf.write(models_path + 'segmenter.onnx', 'segmenter.onnx')
-        zf.write(fileDir + 'src/utils/preprocess_rules.py', 'preprocess_rules.py')
+        zf.write(models_path + 'tiny_fasttext.model', 'models/tiny_fasttext.model')
+        zf.write(models_path + 'segmenter.onnx', 'models/segmenter.onnx')
+        zf.write(fileDir + 'src/utils/preprocess_rules.py', 'src/utils/preprocess_rules.py')
+        zf.write(fileDir + 'src/utils/tokenizer.py', 'src/utils/tokenizer.py')
+        zf.write(fileDir + 'src/utils/transformer.py', 'src/utils/transformer.py')
         zf.write(fileDir + 'src/telegram_bot/run.py', 'run.py')
         zf.write(fileDir + 'src/telegram_bot/requirements.txt', 'requirements.txt')
 
