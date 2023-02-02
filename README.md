@@ -2,6 +2,12 @@
 
 Model for find and replacement toxic words for Russian Language
 
+## Schema
+![docs/schema](docs/toxic_segmenter-2022-12-06-1730-2.png)
+
+## Model
+![docs/model](docs/toxic_segmenter_net-2022-12-11-1632-2.png)
+
 ## Install
 ### Create .env file
 - create `.env` file like `.env.example` in root dir
