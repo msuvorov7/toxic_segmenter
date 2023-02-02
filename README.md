@@ -1,6 +1,6 @@
 # toxic_segmenter
 
-Model for find and replacement toxic words for Russian Language
+Model for find and replacement toxic words for Russian Language: [@toxic_segmenter_bot](https://t.me/toxic_segmenter_bot)
 
 ## Schema
 ![docs/schema](docs/toxic_segmenter-2022-12-06-1730-2.png)
