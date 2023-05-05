@@ -14,3 +14,4 @@ onnxruntime~=1.13.1
 uvicorn~=0.20.0
 fastapi~=0.87.0
 onnx~=1.12.0
+compress_fasttext~=0.1.3
