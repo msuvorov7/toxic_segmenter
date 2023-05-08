@@ -2,6 +2,9 @@
 
 Model for find and replacement toxic words for Russian Language: [@toxic_segmenter_bot](https://t.me/toxic_segmenter_bot)
 
+## Dataset
+Full datatset RuTweetCorp https://www.kaggle.com/datasets/maximsuvorov/rutweetcorp
+
 ## Schema
 ![docs/schema](docs/toxic_segmenter-2022-12-06-1730-2.png)
 
